@@ -4,29 +4,73 @@ export interface SmsProvider {
   sendSms(to: string, message: string): Promise<void>;
 }
 
-class TwilioSmsProvider implements SmsProvider {
-  private accountSid: string;
-  private authToken: string;
-  private fromNumber: string;
+interface TwilioCredentials {
+  accountSid: string;
+  apiKey: string;
+  apiKeySecret: string;
+  phoneNumber: string;
+}
 
-  constructor() {
-    this.accountSid = process.env.TWILIO_ACCOUNT_SID || "";
-    this.authToken = process.env.TWILIO_AUTH_TOKEN || "";
-    this.fromNumber = process.env.TWILIO_FROM_NUMBER || "";
+async function getTwilioCredentials(): Promise<TwilioCredentials | null> {
+  try {
+    const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+    const xReplitToken = process.env.REPL_IDENTITY 
+      ? 'repl ' + process.env.REPL_IDENTITY 
+      : process.env.WEB_REPL_RENEWAL 
+      ? 'depl ' + process.env.WEB_REPL_RENEWAL 
+      : null;
+
+    if (!hostname || !xReplitToken) {
+      return null;
+    }
+
+    const response = await fetch(
+      'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=twilio',
+      {
+        headers: {
+          'Accept': 'application/json',
+          'X_REPLIT_TOKEN': xReplitToken
+        }
+      }
+    );
+
+    const data = await response.json();
+    const connectionSettings = data.items?.[0];
+
+    if (!connectionSettings || !connectionSettings.settings.account_sid || 
+        !connectionSettings.settings.api_key || !connectionSettings.settings.api_key_secret) {
+      return null;
+    }
+
+    return {
+      accountSid: connectionSettings.settings.account_sid,
+      apiKey: connectionSettings.settings.api_key,
+      apiKeySecret: connectionSettings.settings.api_key_secret,
+      phoneNumber: connectionSettings.settings.phone_number
+    };
+  } catch (error) {
+    console.error("Failed to fetch Twilio credentials:", error);
+    return null;
   }
+}
 
+class TwilioSmsProvider implements SmsProvider {
   async sendSms(to: string, message: string): Promise<void> {
-    if (!this.accountSid || !this.authToken || !this.fromNumber) {
+    const credentials = await getTwilioCredentials();
+    
+    if (!credentials) {
       console.log(`[SMS - DEV MODE] Would send to ${to}: ${message}`);
       return;
     }
 
-    const twilio = require("twilio")(this.accountSid, this.authToken);
+    const twilio = require("twilio")(credentials.apiKey, credentials.apiKeySecret, {
+      accountSid: credentials.accountSid
+    });
 
     try {
       await twilio.messages.create({
         body: message,
-        from: this.fromNumber,
+        from: credentials.phoneNumber,
         to: to,
       });
       console.log(`SMS sent successfully to ${to}`);
