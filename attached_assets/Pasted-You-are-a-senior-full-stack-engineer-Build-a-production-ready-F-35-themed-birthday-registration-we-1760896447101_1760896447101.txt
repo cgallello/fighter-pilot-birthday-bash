@@ -1,0 +1,268 @@
+You are a senior full-stack engineer. Build a production-ready, F-35-themed birthday registration website with web push notifications, an admin panel, RSVP-by-timeslot, and phone-number–based SMS verification that is ONLY required when guests edit their personal description. Keep the stack simple and deployable on Replit.
+
+## Goal & Vibe
+- Event site where guests register for my 35th birthday.
+- Theme: F-35 fighter jet, corny/childish tone (e.g., “Mission Briefing,” “Pilot Roster,” “Pre-Flight Check”). Bright, playful graphics and microcopy.
+- Responsive, fast, accessible, PWA.
+
+## Tech Stack
+- Frontend: React + Vite + TypeScript + TailwindCSS.
+- Backend: Node.js (Express) + TypeScript.
+- DB: SQLite (for Replit); use Prisma ORM.
+- Auth: Admin-only login via password from env; session cookie with express-session (SQLite/Prisma store).
+- Push: Web Push API with service worker; `web-push` lib + VAPID keys from env.
+- SMS: Twilio (abstract behind `SmsProvider`).
+
+## Key Features
+1) Public landing / registration
+   - Shows Event Title and Description (from admin-set settings).
+   - “Register” form: name, email (required), phone (optional, E.164), dietary notes (optional).
+   - On submit: create guest, show schedule UI.
+   - **Push permission**: pre-prompt (“Enable mission alerts?”). If denied, persistent “Enable Notifications” button:
+     - Re-attempts `Notification.requestPermission()` if state allows.
+     - If state is “denied,” shows browser-specific instructions modal on how to re-enable.
+   - **Schedule UI**: two columns side by side:
+     - **Fair Weather Plan** (☀️) vs **Rain Plan** (🌧️).
+     - Each event block shows: time, location (map link), title, description.
+     - RSVP toggle per block (“Join / Leave”), playful microcopy (e.g., “🎯 Target locked in!”).
+     - Persist RSVP per guest per block.
+   - **Mission Bio (guest description)**
+     - Guests can set a personal “mission bio” after registering.
+     - Editing the mission bio later requires SMS verification (see Phone Verification rules).
+
+2) Admin panel (protected)
+   - `/admin` login page → `/admin/dashboard`.
+   - Manage global Event Title and Description.
+   - CRUD for “Event Blocks”:
+     - Fields: id, title, description, startTime (ISO), endTime (optional), location, planType (FAIR|RAIN), sortOrder.
+     - Drag-and-drop reorder (updates sortOrder).
+   - View guest roster and RSVP matrix across blocks; search/filter.
+   - **Push Center**:
+     - Textarea + “Send Push to Everyone”.
+     - Optional segment filters (by planType, by RSVP to a specific block).
+     - Preview payload before sending.
+     - “Test push to myself” for the current browser subscription.
+   - CSV export of roster + RSVPs.
+
+3) Web Push
+   - Client subscribes via service worker; POST subscription to `/api/push/subscribe`.
+   - Store subscriptions keyed by guestId if available; backfill after registration.
+   - Admin broadcast `/api/admin/push/broadcast` iterates subscriptions via `web-push`.
+   - Prune dead endpoints on 410/404.
+
+4) PWA
+   - `manifest.webmanifest` (name, short_name, icons, theme/background colors, display: standalone).
+   - `service-worker.ts`:
+     - install/activate
+     - static asset caching (stale-while-revalidate)
+     - `push` → `showNotification`
+     - `notificationclick` → focus/open site
+   - “Install App” prompt UI/nudge.
+
+## Phone Numbers & Edit-Only SMS Verification
+### Product Rules
+- Registration: Guests may enter phone (optional). **No verification required** to register or RSVP initially.
+- Protected action: Editing the **guest personal description (“mission bio”)** requires a one-time **SMS code** verification.
+- After success, grant a short-lived **edit session** (15 minutes) so the guest can edit without re-verifying during that window.
+- If a guest changes their phone number, require fresh verification before saving the change.
+
+### Backend Endpoints
+- `POST /api/guests` → create guest (name, email, phone?, dietaryNotes?). Do not set `phoneVerified` here.
+- `POST /api/auth/sms/start`
+  - body: `{ guestId, phone? }`
+  - Normalize phone to E.164; if `phone` provided and guest has none, upsert it.
+  - Generate 6-digit code, purpose=EDIT_PROFILE, 10-min expiry; send via `SmsProvider`.
+  - Rate-limit by phone & IP (e.g., 5/hour); minimal error messaging (don’t leak existence).
+- `POST /api/auth/sms/verify`
+  - body: `{ guestId, code }`
+  - Validate most recent unconsumed code for guest (purpose=EDIT_PROFILE), not expired, attempts < 5.
+  - On success: mark consumed; set `guest.phoneVerified = true`, `guest.lastVerifiedAt = now`.
+  - Issue **edit token** (JWT or session-scoped flag) with `scope: "edit-profile"`, `ttl: 15m`.
+  - response: `{ ok: true, editToken }`
+- `PUT /api/guests/:id/description` (protected)
+  - headers: `Authorization: Bearer <editToken>` (or server session flag).
+  - Validates token scope/ttl & guest match; updates `Guest.description`.
+  - If guest has no phone on file, require adding + verifying phone first.
+- `PUT /api/guests/:id/phone` (optional)
+  - To change phone, require fresh SMS verify flow before committing.
+
+### Frontend UX
+- Registration form: `Phone (optional)` with helper text “Add your number to unlock quick edits to your mission bio later.”
+- Editing mission bio:
+  - If no active edit token: show mini-flow
+    1) Phone input (prefill existing) → **Send Code**
+    2) 6-box code entry (auto-advance) + resend timer
+    3) On success: show editor; keep edit unlocked for 15 minutes
+  - If token active: open editor directly
+  - If token expired: offer quick re-verify
+- Copy:
+  - Send code CTA: “Send Scramble Code”
+  - Success: “✅ Callsign confirmed. You can edit your mission bio for 15 minutes.”
+  - Error: “That code’s off-target. Request a new one and try again.”
+
+### Security & Abuse Controls
+- Validate/normalize phone (E.164); store minimal PII.
+- Rate limit `/auth/sms/start` & `/auth/sms/verify`; track attempt counts.
+- Hash IP (HMAC with secret) if stored.
+- Single-use codes; invalidate existing unconsumed codes on success.
+- Edit token: HMAC-signed; scope-limited; 15m TTL; audience=guestId; no PII inside.
+
+## Data Model (Prisma)
+- **Guest**
+  - id (string/UUID)
+  - name (string)
+  - email (string, unique)
+  - phone (string, optional)
+  - phoneVerified (boolean, default: false)
+  - description (string, optional)        // “mission bio”
+  - dietaryNotes (string, optional)
+  - createdAt (DateTime)
+  - lastVerifiedAt (DateTime, optional)
+- **EventBlock**
+  - id (string/UUID)
+  - title (string)
+  - description (string)
+  - startTime (DateTime)
+  - endTime (DateTime, optional)
+  - location (string)
+  - planType (enum: FAIR, RAIN)
+  - sortOrder (int)
+  - createdAt (DateTime)
+- **RSVP**
+  - id (string/UUID)
+  - guestId (fk → Guest)
+  - eventBlockId (fk → EventBlock)
+  - status (enum: JOINED | DECLINED)
+  - updatedAt (DateTime)
+  - Unique index on (guestId, eventBlockId)
+- **PushSubscription**
+  - id (string/UUID)
+  - guestId (fk → Guest, nullable)
+  - endpoint (string, unique)
+  - p256dh (string)
+  - auth (string)
+  - createdAt (DateTime)
+  - lastSendAt (DateTime, nullable)
+- **VerificationCode**
+  - id (string/UUID)
+  - guestId (fk → Guest, nullable)
+  - phone (string)
+  - code (string)                     // 6-digit numeric
+  - purpose (enum: EDIT_PROFILE)
+  - expiresAt (DateTime)
+  - attemptCount (int, default: 0)
+  - consumedAt (DateTime, nullable)
+  - ipHash (string, optional)
+  - createdAt (DateTime)
+
+- **Setting** (key/value)
+  - key (string, PK)   // "EVENT_TITLE", "EVENT_DESCRIPTION"
+  - value (string)
+
+## Pages & Routes
+Frontend routes
+- `/` Landing: title/description, Register, Enable Notifications, two-column schedule (FAIR vs RAIN), RSVP toggles, “My Selections” summary, Mission Bio editor entry point.
+- `/success` Post-registration confirmation with PWA install nudge.
+- `/admin` Login page.
+- `/admin/dashboard` Admin home: settings, blocks CRUD + reorder, roster & RSVP matrix, Push center.
+
+Backend API (JSON)
+- `POST /api/guests`
+- `GET /api/schedule` → `{ fair: EventBlock[], rain: EventBlock[] }` sorted
+- `POST /api/rsvp` → `{ guestId, eventBlockId, status }`
+- `POST /api/push/subscribe`
+- `POST /api/admin/login`
+- `POST /api/admin/settings` (title/description)
+- `GET /api/admin/guests`
+- `GET /api/admin/rsvps`
+- `POST /api/admin/blocks`
+- `PUT /api/admin/blocks/:id`
+- `DELETE /api/admin/blocks/:id`
+- `PUT /api/admin/blocks/reorder`
+- `POST /api/admin/push/broadcast`
+- `POST /api/auth/sms/start`
+- `POST /api/auth/sms/verify`
+- `PUT /api/guests/:id/description`
+- `PUT /api/guests/:id/phone` (optional)
+
+## UI/Design Requirements
+- Tailwind with playful F-35 skin:
+  - Header: “Operation: Thirty-Five” with cartoon jet vector, contrail separators, subtle radar-sweep SVG background.
+  - Buttons: pill with “afterburner” hover (gentle box-shadow pulse), emoji accents ✈️🛠️🌧️☀️.
+  - Schedule grid: two columns (desktop) / tabs (mobile) for FAIR vs RAIN.
+  - Event cards: time range, location (map link), title, description, JOIN/LEAVE toggle, small plan badge.
+  - Admin: shadcn-style cards/tables; search/filter for guests and blocks.
+- Accessibility: labels, keyboard nav, focus states, color contrast ≥ 4.5:1, respect `prefers-reduced-motion`.
+
+## Push Notification Details
+- ENV keys:
+  - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+- Client exposes PUBLIC VAPID key; subscriptions deduped by endpoint; delete on 410/404.
+- Broadcast payload: `{ title, body, icon, badge, data: { url } }`.
+- Service worker handles notifications and click behavior.
+
+## Security & Reliability
+- Rate limit auth, SMS, and push endpoints.
+- Helmet, CORS (same-origin for app; allow localhost for dev).
+- CSRF protection for admin forms or use JSON + same-site cookies.
+- Input validation with Zod.
+- Session cookie: httpOnly, secure in prod, sameSite=lax.
+- Don’t expose secrets client-side.
+
+## Environment Variables
+- `ADMIN_PASSWORD`
+- `VAPID_PUBLIC_KEY`
+- `VAPID_PRIVATE_KEY`
+- `VAPID_SUBJECT`
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_FROM_NUMBER`
+- `NODE_ENV`
+
+## File Structure (suggested)
+- `/prisma/schema.prisma`
+- `/server`
+  - `index.ts`
+  - `routes/{guests,schedule,rsvp,push,admin,blocks,auth}.ts`
+  - `lib/{prisma.ts,auth.ts,push.ts,rateLimit.ts,sms.ts,token.ts,validation.ts}`
+- `/web`
+  - `index.html`
+  - `src/main.tsx`, `src/App.tsx`
+  - `src/pages/{Landing,Success,AdminLogin,AdminDashboard}.tsx`
+  - `src/components/{ScheduleColumns,EventCard,RSVPButton,EnablePushButton,MissionBioEditor,InstallPWA,AdminBlocksTable,AdminRoster,PushCenter,SmsCodeModal}.tsx`
+  - `src/sw.ts`
+  - `src/manifest.webmanifest`
+  - `src/styles/tailwind.css`
+
+## Acceptance Criteria
+- Admin can set Event Title/Description; they render on landing.
+- Admin can create FAIR and RAIN blocks; both columns render side-by-side and sort correctly.
+- Guest can register with optional phone and RSVP with no SMS step.
+- Editing mission bio triggers SMS verify flow; success grants a 15-minute edit window.
+- Changing phone requires fresh verification.
+- Push:
+  - Site requests permission with a pre-prompt; persistent “Enable Notifications” button appears on decline.
+  - Admin “Send Push to Everyone” delivers to active subscriptions; dead endpoints pruned.
+- CSV export of roster + RSVP matrix works.
+- PWA installs; push works on supported browsers.
+- Basic a11y checks pass; Lighthouse ≥ 90 on desktop.
+
+## Developer Tasks (order)
+1. Scaffold repo (server/web), configure TS, Prisma, Tailwind.
+2. Implement Prisma schema & migrations (including VerificationCode).
+3. Build Express API: guests, schedule, RSVP, admin, blocks, push; sessions; settings.
+4. Add Web Push (env + keygen fallback) and subscription endpoints.
+5. Implement SMS provider abstraction; Twilio production; console log in dev.
+6. Add `/auth/sms/start`, `/auth/sms/verify`, short-lived edit tokens.
+7. Build UI: landing, schedule columns, RSVP flows, pre-prompt & enable-push, mission bio edit flow, success page.
+8. Admin: settings, blocks CRUD/reorder, roster + RSVP matrix, Push center, CSV export.
+9. PWA: manifest + SW (caching + push handlers).
+10. Security: rate limiting, Zod validation, helmet, CORS, CSRF/sameSite.
+11. Seed script with demo FAIR/RAIN blocks; example env; README with Replit run cmd.
+12. Minimal e2e tests (Playwright) for register → bio edit (SMS mocked) → RSVP → push broadcast (web-push mocked).
+
+## Nice-to-haves
+- Map links on locations.
+- ICS export for joined RSVPs.
+- QR code check-in per block.
+- “Night Ops” dark mode theme toggle.
