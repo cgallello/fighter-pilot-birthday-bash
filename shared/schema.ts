@@ -50,6 +50,7 @@ export const insertEventBlockSchema = createInsertSchema(eventBlocks)
   .extend({
     startTime: z.string().transform((val) => new Date(val)),
     endTime: z.string().optional().nullable().transform((val) => val ? new Date(val) : null),
+    sortOrder: z.number().optional().default(0),
   });
 
 export type InsertEventBlock = z.infer<typeof insertEventBlockSchema>;

@@ -8,6 +8,7 @@ export function validateRequest(schema: z.ZodSchema) {
       next();
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error("Validation error:", JSON.stringify(error.errors, null, 2));
         res.status(400).json({
           error: "Validation failed",
           details: error.errors,
