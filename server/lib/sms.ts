@@ -1,4 +1,4 @@
-import { parsePhoneNumber, isValidPhoneNumber } from "libphonenumber-js";
+import { parsePhoneNumber, isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
 
 export interface SmsProvider {
   sendSms(to: string, message: string): Promise<void>;
@@ -39,13 +39,18 @@ class TwilioSmsProvider implements SmsProvider {
 
 export const smsProvider = new TwilioSmsProvider();
 
-export function normalizePhoneNumber(phone: string): string | null {
+export function normalizePhoneNumber(phone: string, defaultCountry: CountryCode = "US"): string | null {
   try {
-    if (!isValidPhoneNumber(phone)) {
-      return null;
+    // First try to validate with default country code
+    if (!isValidPhoneNumber(phone, defaultCountry)) {
+      // If that fails, try without country code (for international numbers with +)
+      if (!isValidPhoneNumber(phone)) {
+        return null;
+      }
     }
     
-    const parsed = parsePhoneNumber(phone);
+    // Parse with default country to handle numbers without + prefix
+    const parsed = parsePhoneNumber(phone, defaultCountry);
     return parsed.format("E.164");
   } catch {
     return null;
