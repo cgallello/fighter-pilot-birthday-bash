@@ -2,7 +2,8 @@ import { parsePhoneNumber, isValidPhoneNumber, type CountryCode } from "libphone
 import twilio from "twilio";
 
 export interface SmsProvider {
-  sendSms(to: string, message: string): Promise<void>;
+  sendVerification(to: string): Promise<{ success: boolean; error?: string }>;
+  checkVerification(to: string, code: string): Promise<{ success: boolean; error?: string }>;
 }
 
 interface TwilioCredentials {
@@ -10,6 +11,7 @@ interface TwilioCredentials {
   apiKey: string;
   apiKeySecret: string;
   phoneNumber: string;
+  verifyServiceSid?: string;
 }
 
 async function getTwilioCredentials(): Promise<TwilioCredentials | null> {
@@ -70,7 +72,8 @@ async function getTwilioCredentials(): Promise<TwilioCredentials | null> {
       accountSid: connectionSettings.settings.account_sid,
       apiKey: connectionSettings.settings.api_key,
       apiKeySecret: connectionSettings.settings.api_key_secret,
-      phoneNumber: connectionSettings.settings.phone_number
+      phoneNumber: connectionSettings.settings.phone_number,
+      verifyServiceSid: connectionSettings.settings.verify_service_sid || process.env.TWILIO_VERIFY_SERVICE_SID
     };
   } catch (error) {
     console.error("[Twilio Debug] Failed to fetch Twilio credentials:", error);
@@ -79,33 +82,78 @@ async function getTwilioCredentials(): Promise<TwilioCredentials | null> {
 }
 
 class TwilioSmsProvider implements SmsProvider {
-  async sendSms(to: string, message: string): Promise<void> {
-    console.log('[Twilio Debug] sendSms called for:', to);
+  async sendVerification(to: string): Promise<{ success: boolean; error?: string }> {
+    console.log('[Twilio Verify] Sending verification to:', to);
     try {
       const credentials = await getTwilioCredentials();
       
       if (!credentials) {
-        console.log(`[SMS - DEV MODE] Would send to ${to}: ${message}`);
-        return;
+        console.log(`[SMS - DEV MODE] Would send verification code to ${to}`);
+        return { success: true };
       }
 
-      console.log('[Twilio Debug] Creating Twilio client...');
+      if (!credentials.verifyServiceSid) {
+        console.error('[Twilio Verify] Missing Verify Service SID');
+        return { success: false, error: 'Twilio Verify not configured' };
+      }
+
       const twilioClient = twilio(credentials.apiKey, credentials.apiKeySecret, {
         accountSid: credentials.accountSid
       });
 
-      console.log('[Twilio Debug] Sending message from:', credentials.phoneNumber, 'to:', to);
-      const result = await twilioClient.messages.create({
-        body: message,
-        from: credentials.phoneNumber,
-        to: to,
+      const verification = await twilioClient.verify.v2
+        .services(credentials.verifyServiceSid)
+        .verifications
+        .create({ 
+          to: to,
+          channel: 'sms'
+        });
+
+      console.log('[Twilio Verify] Verification sent! Status:', verification.status, 'SID:', verification.sid);
+      return { success: true };
+    } catch (error: any) {
+      console.error("[Twilio Verify] Failed to send verification:", error);
+      return { success: false, error: error.message || 'Failed to send verification' };
+    }
+  }
+
+  async checkVerification(to: string, code: string): Promise<{ success: boolean; error?: string }> {
+    console.log('[Twilio Verify] Checking verification for:', to);
+    try {
+      const credentials = await getTwilioCredentials();
+      
+      if (!credentials) {
+        console.log(`[SMS - DEV MODE] Would verify code ${code} for ${to}`);
+        return { success: true };
+      }
+
+      if (!credentials.verifyServiceSid) {
+        console.error('[Twilio Verify] Missing Verify Service SID');
+        return { success: false, error: 'Twilio Verify not configured' };
+      }
+
+      const twilioClient = twilio(credentials.apiKey, credentials.apiKeySecret, {
+        accountSid: credentials.accountSid
       });
-      console.log('[Twilio Debug] SMS sent successfully! SID:', result.sid);
-      console.log(`SMS sent successfully to ${to}`);
-    } catch (error) {
-      console.error("[Twilio Debug] Failed to send SMS:", error);
-      // Log to console instead of sending SMS in dev mode if Twilio fails
-      console.log(`[SMS - FALLBACK] Would send to ${to}: ${message}`);
+
+      const verificationCheck = await twilioClient.verify.v2
+        .services(credentials.verifyServiceSid)
+        .verificationChecks
+        .create({ 
+          to: to,
+          code: code
+        });
+
+      console.log('[Twilio Verify] Verification check status:', verificationCheck.status);
+      
+      if (verificationCheck.status === 'approved') {
+        return { success: true };
+      } else {
+        return { success: false, error: 'Invalid or expired code' };
+      }
+    } catch (error: any) {
+      console.error("[Twilio Verify] Failed to check verification:", error);
+      return { success: false, error: error.message || 'Verification failed' };
     }
   }
 }
@@ -128,8 +176,4 @@ export function normalizePhoneNumber(phone: string, defaultCountry: CountryCode 
   } catch {
     return null;
   }
-}
-
-export function generateVerificationCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
 }

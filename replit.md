@@ -45,8 +45,8 @@ Preferred communication style: Simple, everyday language.
 **Data Layer**
 - PostgreSQL database accessed via Neon serverless driver
 - Drizzle ORM for type-safe database queries and schema management
-- Schema includes: guests, eventBlocks, rsvps, verificationCodes, settings tables
-- Enum types for plan types (FAIR/RAIN), RSVP status, and verification purposes
+- Schema includes: guests, eventBlocks, rsvps, settings tables
+- Enum types for plan types (FAIR/RAIN) and RSVP status
 
 **Authentication & Security**
 - Admin authentication via password from environment variable
@@ -66,9 +66,9 @@ Preferred communication style: Simple, everyday language.
 
 **Business Logic Patterns**
 - Storage abstraction layer separating database operations from route handlers
-- SMS provider abstraction allowing easy swap between Twilio and dev/test implementations
+- SMS provider abstraction using Twilio Verify API for verification code management
 - Phone number normalization to E.164 format using libphonenumber-js
-- Verification code generation with 6-digit codes, expiry tracking, and attempt limits
+- Twilio Verify handles code generation, expiry, rate limiting, and verification attempts automatically
 
 ### External Dependencies
 
@@ -78,9 +78,11 @@ Preferred communication style: Simple, everyday language.
 - Drizzle ORM for migrations and schema management
 
 **SMS Service**
-- Twilio for production SMS delivery (verification codes)
+- Twilio Verify API for SMS verification code management
+- Requires Twilio Account SID (starts with AC), API Key, API Key Secret, and Verify Service SID
+- Twilio Verify handles code generation, delivery, expiry (10 minutes), rate limiting, and attempt tracking
 - Graceful fallback to console logging in development when credentials absent
-- Provider abstraction allows switching SMS vendors without changing business logic
+- To set up: Create a Verify Service in Twilio Console and add TWILIO_VERIFY_SERVICE_SID to environment variables
 
 **Authentication**
 - bcryptjs for password hashing (future use, currently using direct comparison)

@@ -2,7 +2,6 @@ import {
   guests,
   eventBlocks,
   rsvps,
-  verificationCodes,
   settings,
   type Guest,
   type InsertGuest,
@@ -10,8 +9,6 @@ import {
   type InsertEventBlock,
   type Rsvp,
   type InsertRsvp,
-  type VerificationCode,
-  type InsertVerificationCode,
   type Setting,
   type InsertSetting,
 } from "@shared/schema";
@@ -41,12 +38,6 @@ export interface IStorage {
   getAllRsvpsWithGuests(): Promise<Array<Rsvp & { guest?: Guest }>>;
   upsertRsvp(rsvp: InsertRsvp): Promise<Rsvp>;
   deleteRsvp(guestId: string, eventBlockId: string): Promise<void>;
-
-  // VerificationCode operations
-  createVerificationCode(code: InsertVerificationCode): Promise<VerificationCode>;
-  getLatestVerificationCode(guestId: string, purpose: string): Promise<VerificationCode | undefined>;
-  incrementAttemptCount(id: string): Promise<void>;
-  markCodeAsConsumed(id: string): Promise<void>;
 
   // Settings operations
   getSetting(key: string): Promise<Setting | undefined>;
@@ -168,46 +159,6 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(rsvps)
       .where(and(eq(rsvps.guestId, guestId), eq(rsvps.eventBlockId, eventBlockId)));
-  }
-
-  // VerificationCode operations
-  async createVerificationCode(code: InsertVerificationCode): Promise<VerificationCode> {
-    const [created] = await db.insert(verificationCodes).values(code).returning();
-    return created;
-  }
-
-  async getLatestVerificationCode(
-    guestId: string,
-    purpose: string
-  ): Promise<VerificationCode | undefined> {
-    const [code] = await db
-      .select()
-      .from(verificationCodes)
-      .where(and(eq(verificationCodes.guestId, guestId), eq(verificationCodes.purpose, purpose as any)))
-      .orderBy(desc(verificationCodes.createdAt))
-      .limit(1);
-    return code || undefined;
-  }
-
-  async incrementAttemptCount(id: string): Promise<void> {
-    const [code] = await db
-      .select()
-      .from(verificationCodes)
-      .where(eq(verificationCodes.id, id));
-    
-    if (code) {
-      await db
-        .update(verificationCodes)
-        .set({ attemptCount: code.attemptCount + 1 })
-        .where(eq(verificationCodes.id, id));
-    }
-  }
-
-  async markCodeAsConsumed(id: string): Promise<void> {
-    await db
-      .update(verificationCodes)
-      .set({ consumedAt: new Date() })
-      .where(eq(verificationCodes.id, id));
   }
 
   // Settings operations

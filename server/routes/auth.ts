@@ -2,9 +2,8 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { validateRequest } from "../lib/validation";
 import { rateLimitSms } from "../lib/rateLimit";
-import { smsProvider, normalizePhoneNumber, generateVerificationCode } from "../lib/sms";
+import { smsProvider, normalizePhoneNumber } from "../lib/sms";
 import { generateEditToken, verifyEditToken } from "../lib/tokens";
-import { hashIp } from "../lib/rateLimit";
 import { z } from "zod";
 
 const router = Router();
@@ -46,26 +45,12 @@ router.post("/sms/start", rateLimitSms, validateRequest(startSmsSchema), async (
       phoneToVerify = normalized;
     }
     
-    // Generate verification code
-    const code = generateVerificationCode();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-    const ipHash = hashIp(req.ip || "unknown");
+    // Send verification using Twilio Verify
+    const result = await smsProvider.sendVerification(phoneToVerify);
     
-    // Store verification code
-    await storage.createVerificationCode({
-      guestId,
-      phone: phoneToVerify,
-      code,
-      purpose: "EDIT_PROFILE",
-      expiresAt,
-      ipHash,
-      attemptCount: 0,
-      consumedAt: null,
-    });
-    
-    // Send SMS
-    const message = `Your verification code for Operation: Thirty-Five is ${code}. Valid for 10 minutes.`;
-    await smsProvider.sendSms(phoneToVerify, message);
+    if (!result.success) {
+      return res.status(500).json({ error: result.error || "Failed to send verification code" });
+    }
     
     res.json({ success: true });
   } catch (error) {
@@ -84,36 +69,12 @@ router.post("/sms/verify", rateLimitSms, validateRequest(verifySmsSchema), async
       return res.status(404).json({ error: "Guest not found" });
     }
     
-    // Get latest verification code
-    const verificationCode = await storage.getLatestVerificationCode(guestId, "EDIT_PROFILE");
+    // Verify code using Twilio Verify
+    const result = await smsProvider.checkVerification(guest.phone, code);
     
-    if (!verificationCode) {
-      return res.status(400).json({ error: "No verification code found. Please request a new code." });
+    if (!result.success) {
+      return res.status(400).json({ error: result.error || "Invalid code. Please try again." });
     }
-    
-    // Check if already consumed
-    if (verificationCode.consumedAt) {
-      return res.status(400).json({ error: "Code already used. Please request a new code." });
-    }
-    
-    // Check if expired
-    if (new Date() > verificationCode.expiresAt) {
-      return res.status(400).json({ error: "Code expired. Please request a new code." });
-    }
-    
-    // Check attempt count
-    if (verificationCode.attemptCount >= 5) {
-      return res.status(400).json({ error: "Too many attempts. Please request a new code." });
-    }
-    
-    // Verify code
-    if (verificationCode.code !== code) {
-      await storage.incrementAttemptCount(verificationCode.id);
-      return res.status(400).json({ error: "Invalid code. Please try again." });
-    }
-    
-    // Mark as consumed
-    await storage.markCodeAsConsumed(verificationCode.id);
     
     // Update guest as verified
     await storage.updateGuest(guestId, {

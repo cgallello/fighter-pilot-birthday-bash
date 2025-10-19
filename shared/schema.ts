@@ -6,7 +6,6 @@ import { z } from "zod";
 // Enums
 export const planTypeEnum = pgEnum("plan_type", ["FAIR", "RAIN"]);
 export const rsvpStatusEnum = pgEnum("rsvp_status", ["JOINED", "DECLINED"]);
-export const verificationPurposeEnum = pgEnum("verification_purpose", ["EDIT_PROFILE"]);
 
 // Guest table
 export const guests = pgTable("guests", {
@@ -75,28 +74,6 @@ export const insertRsvpSchema = createInsertSchema(rsvps).omit({
 
 export type InsertRsvp = z.infer<typeof insertRsvpSchema>;
 export type Rsvp = typeof rsvps.$inferSelect;
-
-// VerificationCode table
-export const verificationCodes = pgTable("verification_codes", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  guestId: varchar("guest_id").references(() => guests.id, { onDelete: "cascade" }),
-  phone: text("phone").notNull(),
-  code: text("code").notNull(),
-  purpose: verificationPurposeEnum("purpose").notNull(),
-  expiresAt: timestamp("expires_at").notNull(),
-  attemptCount: integer("attempt_count").notNull().default(0),
-  consumedAt: timestamp("consumed_at"),
-  ipHash: text("ip_hash"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
-export const insertVerificationCodeSchema = createInsertSchema(verificationCodes).omit({
-  id: true,
-  createdAt: true,
-});
-
-export type InsertVerificationCode = z.infer<typeof insertVerificationCodeSchema>;
-export type VerificationCode = typeof verificationCodes.$inferSelect;
 
 // Settings table (key-value store)
 export const settings = pgTable("settings", {
