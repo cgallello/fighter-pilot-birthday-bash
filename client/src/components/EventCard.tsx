@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Clock, Target, X } from "lucide-react";
+import { MapPin, Clock, Target, Plane } from "lucide-react";
 import { format } from "date-fns";
 
 interface EventCardProps {
@@ -82,7 +82,7 @@ export default function EventCard({
             </>
           ) : (
             <>
-              <X className="w-4 h-4 mr-2" />
+              <Plane className="w-4 h-4 mr-2" />
               Join Mission
             </>
           )}

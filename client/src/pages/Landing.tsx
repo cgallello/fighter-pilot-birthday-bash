@@ -124,66 +124,74 @@ export default function Landing() {
         description="Mission Briefing: You are cleared for the ultimate birthday celebration. Confirm your deployment slot and prepare for tactical fun at 35,000 feet of awesome!"
       />
 
-      {/* Main Content - Registration + Schedule Combined */}
+      {/* Schedule Section */}
       <section className="py-16 px-4">
-        <div className="container mx-auto max-w-7xl">
+        <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-12">
             <h2 className="font-display font-bold text-4xl uppercase tracking-wide mb-3">
-              Mission Schedule & RSVP
+              Mission Schedule
             </h2>
             <p className="text-muted-foreground text-lg">
-              Register and choose your operations based on weather conditions
+              Choose your operations based on weather conditions
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-[320px_1fr] gap-8">
-            {/* Left: Registration Form (Sticky) */}
-            <div className="lg:sticky lg:top-24 self-start">
-              <RegistrationForm onRegister={handleRegister} />
-              
-              {isRegistered && rsvps.size > 0 && (
-                <div className="mt-6 p-6 bg-primary/5 border-2 border-primary rounded-lg">
-                  <h3 className="font-display font-bold text-lg uppercase tracking-wide mb-2 text-center">
-                    Deployment Status
-                  </h3>
-                  <p className="text-center mb-4">
-                    <span className="font-bold text-primary text-3xl">{rsvps.size}</span>{" "}
-                    {rsvps.size === 1 ? "mission" : "missions"}
-                  </p>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button
-                        data-testid="button-edit-mission-bio"
-                        variant="outline"
-                        size="sm"
-                        className="w-full font-display uppercase tracking-wide"
-                      >
-                        Edit Mission Bio
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
-                      <MissionBioEditor
-                        phone={guestData?.phone}
-                        onSave={(bio) => console.log("Bio saved:", bio)}
-                        onRequestCode={(phone) => console.log("Code requested:", phone)}
-                        onVerifyCode={(code) => console.log("Code verified:", code)}
-                      />
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              )}
-            </div>
+          <ScheduleColumns
+            fairEvents={mockFairEvents}
+            rainEvents={mockRainEvents}
+            userRSVPs={rsvps}
+            onToggleRSVP={handleToggleRSVP}
+          />
+        </div>
+      </section>
 
-            {/* Right: Schedule */}
-            <div>
-              <ScheduleColumns
-                fairEvents={mockFairEvents}
-                rainEvents={mockRainEvents}
-                userRSVPs={rsvps}
-                onToggleRSVP={handleToggleRSVP}
-              />
-            </div>
+      {/* Registration Section - Bottom */}
+      <section className="py-16 px-4 bg-muted/30 border-t">
+        <div className="container mx-auto max-w-4xl">
+          <div className="text-center mb-8">
+            <h2 className="font-display font-bold text-4xl uppercase tracking-wide mb-3">
+              Complete Your Registration
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Enter your info to confirm your RSVPs
+            </p>
           </div>
+
+          <div className="max-w-md mx-auto">
+            <RegistrationForm onRegister={handleRegister} />
+          </div>
+
+          {isRegistered && rsvps.size > 0 && (
+            <div className="mt-8 max-w-md mx-auto p-6 bg-primary/5 border-2 border-primary rounded-lg">
+              <h3 className="font-display font-bold text-lg uppercase tracking-wide mb-2 text-center">
+                Deployment Status
+              </h3>
+              <p className="text-center mb-4">
+                <span className="font-bold text-primary text-3xl">{rsvps.size}</span>{" "}
+                {rsvps.size === 1 ? "mission" : "missions"} confirmed
+              </p>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button
+                    data-testid="button-edit-mission-bio"
+                    variant="outline"
+                    size="sm"
+                    className="w-full font-display uppercase tracking-wide"
+                  >
+                    Edit Mission Bio
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <MissionBioEditor
+                    phone={guestData?.phone}
+                    onSave={(bio) => console.log("Bio saved:", bio)}
+                    onRequestCode={(phone) => console.log("Code requested:", phone)}
+                    onVerifyCode={(code) => console.log("Code verified:", code)}
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
         </div>
       </section>
 
