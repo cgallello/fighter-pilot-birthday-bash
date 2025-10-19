@@ -8,7 +8,6 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Plane } from "lucide-react";
 
 export default function Landing() {
-  const [registered, setRegistered] = useState(false);
   const [guestData, setGuestData] = useState<any>(null);
   const [rsvps, setRsvps] = useState<Set<string>>(new Set());
 
@@ -82,7 +81,6 @@ export default function Landing() {
   const handleRegister = (data: any) => {
     console.log("Guest registered:", data);
     setGuestData(data);
-    setRegistered(true);
   };
 
   const handleToggleRSVP = (eventId: string, joined: boolean) => {
@@ -96,6 +94,8 @@ export default function Landing() {
       return newSet;
     });
   };
+
+  const isRegistered = !!guestData;
 
   return (
     <div className="min-h-screen">
@@ -124,37 +124,58 @@ export default function Landing() {
         description="Mission Briefing: You are cleared for the ultimate birthday celebration. Confirm your deployment slot and prepare for tactical fun at 35,000 feet of awesome!"
       />
 
-      {/* Registration Section */}
-      {!registered && (
-        <section className="py-16 px-4 bg-muted/30">
-          <div className="container mx-auto max-w-6xl">
-            <div className="text-center mb-8">
-              <h2 className="font-display font-bold text-4xl uppercase tracking-wide mb-3">
-                Join The Squadron
-              </h2>
-              <p className="text-muted-foreground text-lg">
-                Register now to secure your slot in the mission
-              </p>
-            </div>
-            <RegistrationForm onRegister={handleRegister} />
+      {/* Main Content - Registration + Schedule Combined */}
+      <section className="py-16 px-4">
+        <div className="container mx-auto max-w-7xl">
+          <div className="text-center mb-12">
+            <h2 className="font-display font-bold text-4xl uppercase tracking-wide mb-3">
+              Mission Schedule & RSVP
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Register and choose your operations based on weather conditions
+            </p>
           </div>
-        </section>
-      )}
 
-      {/* Schedule Section */}
-      {registered && (
-        <>
-          <section className="py-16 px-4">
-            <div className="container mx-auto max-w-6xl">
-              <div className="text-center mb-12">
-                <h2 className="font-display font-bold text-4xl uppercase tracking-wide mb-3">
-                  Mission Schedule
-                </h2>
-                <p className="text-muted-foreground text-lg">
-                  Choose your operations based on weather conditions
-                </p>
-              </div>
+          <div className="grid lg:grid-cols-[320px_1fr] gap-8">
+            {/* Left: Registration Form (Sticky) */}
+            <div className="lg:sticky lg:top-24 self-start">
+              <RegistrationForm onRegister={handleRegister} />
+              
+              {isRegistered && rsvps.size > 0 && (
+                <div className="mt-6 p-6 bg-primary/5 border-2 border-primary rounded-lg">
+                  <h3 className="font-display font-bold text-lg uppercase tracking-wide mb-2 text-center">
+                    Deployment Status
+                  </h3>
+                  <p className="text-center mb-4">
+                    <span className="font-bold text-primary text-3xl">{rsvps.size}</span>{" "}
+                    {rsvps.size === 1 ? "mission" : "missions"}
+                  </p>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        data-testid="button-edit-mission-bio"
+                        variant="outline"
+                        size="sm"
+                        className="w-full font-display uppercase tracking-wide"
+                      >
+                        Edit Mission Bio
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <MissionBioEditor
+                        phone={guestData?.phone}
+                        onSave={(bio) => console.log("Bio saved:", bio)}
+                        onRequestCode={(phone) => console.log("Code requested:", phone)}
+                        onVerifyCode={(code) => console.log("Code verified:", code)}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              )}
+            </div>
 
+            {/* Right: Schedule */}
+            <div>
               <ScheduleColumns
                 fairEvents={mockFairEvents}
                 rainEvents={mockRainEvents}
@@ -162,44 +183,9 @@ export default function Landing() {
                 onToggleRSVP={handleToggleRSVP}
               />
             </div>
-          </section>
-
-          {/* My Selections Summary */}
-          {rsvps.size > 0 && (
-            <section className="py-12 px-4 bg-primary/5 border-t-2 border-primary">
-              <div className="container mx-auto max-w-4xl text-center">
-                <h3 className="font-display font-bold text-2xl uppercase tracking-wide mb-3">
-                  Your Deployment Status
-                </h3>
-                <p className="text-lg mb-6">
-                  <span className="font-bold text-primary text-3xl">{rsvps.size}</span>{" "}
-                  {rsvps.size === 1 ? "mission" : "missions"} confirmed
-                </p>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button
-                      data-testid="button-edit-mission-bio"
-                      variant="outline"
-                      size="lg"
-                      className="font-display uppercase tracking-wide"
-                    >
-                      Edit Mission Bio
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <MissionBioEditor
-                      phone={guestData?.phone}
-                      onSave={(bio) => console.log("Bio saved:", bio)}
-                      onRequestCode={(phone) => console.log("Code requested:", phone)}
-                      onVerifyCode={(code) => console.log("Code verified:", code)}
-                    />
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </section>
-          )}
-        </>
-      )}
+          </div>
+        </div>
+      </section>
 
       {/* Footer */}
       <footer className="py-8 px-4 bg-jet-gray text-cloud-white">
