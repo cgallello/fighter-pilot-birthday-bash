@@ -49,7 +49,10 @@ export const insertEventBlockSchema = createInsertSchema(eventBlocks)
   })
   .extend({
     startTime: z.string().transform((val) => new Date(val)),
-    endTime: z.string().optional().nullable().transform((val) => val ? new Date(val) : null),
+    endTime: z.union([z.string(), z.null(), z.undefined()]).optional().transform((val) => {
+      if (!val || val === '') return null;
+      return new Date(val);
+    }),
     sortOrder: z.number().optional().default(0),
   });
 
