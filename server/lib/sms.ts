@@ -1,4 +1,5 @@
 import { parsePhoneNumber, isValidPhoneNumber, type CountryCode } from "libphonenumber-js";
+import twilio from "twilio";
 
 export interface SmsProvider {
   sendSms(to: string, message: string): Promise<void>;
@@ -64,11 +65,11 @@ class TwilioSmsProvider implements SmsProvider {
         return;
       }
 
-      const twilio = require("twilio")(credentials.apiKey, credentials.apiKeySecret, {
+      const twilioClient = twilio(credentials.apiKey, credentials.apiKeySecret, {
         accountSid: credentials.accountSid
       });
 
-      await twilio.messages.create({
+      await twilioClient.messages.create({
         body: message,
         from: credentials.phoneNumber,
         to: to,
