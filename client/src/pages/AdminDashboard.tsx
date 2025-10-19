@@ -1,53 +1,200 @@
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import AdminLogin from "@/components/AdminLogin";
 import AdminSettingsForm from "@/components/AdminSettingsForm";
 import AdminEventForm from "@/components/AdminEventForm";
 import AdminRosterView from "@/components/AdminRosterView";
 import { Settings, Calendar, Users, Plus, Shield, LogOut } from "lucide-react";
+import { useLocation } from "wouter";
+
+interface EventBlock {
+  id: string;
+  title: string;
+  description: string;
+  startTime: string;
+  endTime?: string | null;
+  location: string;
+  planType: "FAIR" | "RAIN";
+  sortOrder: number;
+}
+
+interface Rsvp {
+  id: string;
+  guestId: string;
+  eventBlockId: string;
+  status: "JOINED" | "DECLINED";
+  guest?: {
+    id: string;
+    name: string;
+    phone: string;
+    description?: string | null;
+  };
+}
 
 export default function AdminDashboard() {
+  const [, navigate] = useLocation();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState("settings");
   const [showEventForm, setShowEventForm] = useState(false);
+  const { toast } = useToast();
 
-  //todo: remove mock functionality
-  const mockGuests = [
-    {
-      id: "1",
-      name: "Maverick",
-      email: "maverick@topgun.mil",
-      phone: "+1 (555) 001-0001",
-      description: "Veteran pilot with 100+ successful missions",
-    },
-    {
-      id: "2",
-      name: "Iceman",
-      email: "iceman@topgun.mil",
-      phone: "+1 (555) 001-0002",
-      description: "Cool under pressure, tactical specialist",
-    },
-    {
-      id: "3",
-      name: "Goose",
-      email: "goose@topgun.mil",
-      phone: "+1 (555) 001-0003",
-    },
-  ];
+  // Fetch settings
+  const { data: settings } = useQuery<{ eventTitle: string; eventDescription: string }>({
+    queryKey: ["/api/settings"],
+    enabled: isAuthenticated,
+  });
 
-  const mockEvents = [
-    { id: "1", title: "Pre-Flight Briefing", planType: "FAIR" as const },
-    { id: "2", title: "Outdoor Exercises", planType: "FAIR" as const },
-    { id: "3", title: "Indoor Training", planType: "RAIN" as const },
-  ];
+  // Fetch events
+  const { data: eventsData } = useQuery<{ fair: EventBlock[]; rain: EventBlock[] }>({
+    queryKey: ["/api/events"],
+    enabled: isAuthenticated,
+  });
 
-  const mockRsvps = [
-    { guestId: "1", eventBlockId: "1", status: "JOINED" as const },
-    { guestId: "1", eventBlockId: "2", status: "JOINED" as const },
-    { guestId: "2", eventBlockId: "1", status: "JOINED" as const },
-    { guestId: "2", eventBlockId: "3", status: "JOINED" as const },
-    { guestId: "3", eventBlockId: "1", status: "JOINED" as const },
-  ];
+  // Fetch RSVPs
+  const { data: rsvpsData } = useQuery<Rsvp[]>({
+    queryKey: ["/api/admin/rsvps"],
+    enabled: isAuthenticated,
+  });
+
+  // Login mutation
+  const loginMutation = useMutation({
+    mutationFn: async (password: string) => {
+      const res = await apiRequest("POST", "/api/admin/login", { password });
+      return await res.json();
+    },
+    onSuccess: () => {
+      setIsAuthenticated(true);
+      toast({
+        title: "✅ Access Granted",
+        description: "Welcome to Command Center",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "❌ Access Denied",
+        description: "Invalid authorization code",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Logout mutation
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/logout", {});
+      return await res.json();
+    },
+    onSuccess: () => {
+      setIsAuthenticated(false);
+      toast({
+        title: "Logged Out",
+        description: "Session terminated",
+      });
+      navigate("/");
+    },
+  });
+
+  // Save settings mutation
+  const saveSettingsMutation = useMutation({
+    mutationFn: async (data: { eventTitle: string; eventDescription: string }) => {
+      const res = await apiRequest("POST", "/api/settings", data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/settings"] });
+      toast({
+        title: "✅ Settings Saved",
+        description: "Event details updated successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "❌ Failed to Save",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Create event mutation
+  const createEventMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const eventData = {
+        ...data,
+        startTime: new Date(data.startTime).toISOString(),
+        endTime: data.endTime ? new Date(data.endTime).toISOString() : null,
+      };
+      const res = await apiRequest("POST", "/api/events", eventData);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      setShowEventForm(false);
+      toast({
+        title: "✅ Event Created",
+        description: "New mission block added to schedule",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "❌ Failed to Create Event",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete event mutation
+  const deleteEventMutation = useMutation({
+    mutationFn: async (eventId: string) => {
+      const res = await apiRequest("DELETE", `/api/events/${eventId}`, {});
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      toast({
+        title: "✅ Event Deleted",
+        description: "Mission block removed from schedule",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "❌ Failed to Delete",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  if (!isAuthenticated) {
+    return <AdminLogin onLogin={(password) => loginMutation.mutate(password)} />;
+  }
+
+  const allEvents = [...(eventsData?.fair || []), ...(eventsData?.rain || [])].sort(
+    (a, b) => a.sortOrder - b.sortOrder
+  );
+
+  // Extract unique guests from RSVPs
+  const guests = rsvpsData
+    ? Array.from(
+        new Map(
+          rsvpsData
+            .filter((r) => r.guest)
+            .map((r) => [r.guest!.id, {
+              id: r.guest!.id,
+              name: r.guest!.name,
+              email: "", // Not collected in our schema
+              phone: r.guest!.phone,
+              description: r.guest!.description || undefined,
+            }])
+        ).values()
+      )
+    : [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -67,7 +214,8 @@ export default function AdminDashboard() {
             variant="ghost"
             data-testid="button-logout"
             className="text-cloud-white hover:bg-cloud-white/10"
-            onClick={() => console.log("Logout")}
+            onClick={() => logoutMutation.mutate()}
+            disabled={logoutMutation.isPending}
           >
             <LogOut className="w-4 h-4 mr-2" />
             Sign Out
@@ -108,11 +256,13 @@ export default function AdminDashboard() {
           <TabsContent value="settings" className="space-y-6">
             <AdminSettingsForm
               initialData={{
-                eventTitle: "OPERATION: THIRTY-FIVE",
+                eventTitle: settings?.eventTitle || "OPERATION: THIRTY-FIVE",
                 eventDescription:
-                  "Mission Briefing: You are cleared for the ultimate birthday celebration. Confirm your deployment slot and prepare for tactical fun at 35,000 feet of awesome!",
+                  settings?.eventDescription ||
+                  "Mission Briefing: You are cleared for the ultimate birthday celebration.",
               }}
-              onSave={(data) => console.log("Settings saved:", data)}
+              onSave={(data) => saveSettingsMutation.mutate(data)}
+              isSaving={saveSettingsMutation.isPending}
             />
           </TabsContent>
 
@@ -136,16 +286,14 @@ export default function AdminDashboard() {
 
             {showEventForm && (
               <AdminEventForm
-                onSave={(data) => {
-                  console.log("Event created:", data);
-                  setShowEventForm(false);
-                }}
+                onSave={(data) => createEventMutation.mutate(data)}
                 onCancel={() => setShowEventForm(false)}
+                isSaving={createEventMutation.isPending}
               />
             )}
 
             <div className="space-y-4">
-              {mockEvents.map((event) => (
+              {allEvents.map((event) => (
                 <Card key={event.id} className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
@@ -153,15 +301,16 @@ export default function AdminDashboard() {
                       <p className="text-sm text-muted-foreground">
                         {event.planType === "FAIR" ? "☀️ Fair Weather" : "🌧️ Rain Plan"}
                       </p>
+                      <p className="text-xs text-muted-foreground mt-1">{event.location}</p>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="font-display uppercase text-xs">
-                        Edit
-                      </Button>
                       <Button
                         variant="destructive"
                         size="sm"
                         className="font-display uppercase text-xs"
+                        onClick={() => deleteEventMutation.mutate(event.id)}
+                        disabled={deleteEventMutation.isPending}
+                        data-testid={`button-delete-event-${event.id}`}
                       >
                         Delete
                       </Button>
@@ -173,7 +322,19 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="roster">
-            <AdminRosterView guests={mockGuests} events={mockEvents} rsvps={mockRsvps} />
+            <AdminRosterView
+              guests={guests}
+              events={allEvents.map((e) => ({
+                id: e.id,
+                title: e.title,
+                planType: e.planType,
+              }))}
+              rsvps={(rsvpsData || []).map((r) => ({
+                guestId: r.guestId,
+                eventBlockId: r.eventBlockId,
+                status: r.status,
+              }))}
+            />
           </TabsContent>
         </Tabs>
       </div>

@@ -14,9 +14,10 @@ interface SettingsData {
 interface AdminSettingsFormProps {
   initialData: SettingsData;
   onSave: (data: SettingsData) => void;
+  isSaving?: boolean;
 }
 
-export default function AdminSettingsForm({ initialData, onSave }: AdminSettingsFormProps) {
+export default function AdminSettingsForm({ initialData, onSave, isSaving }: AdminSettingsFormProps) {
   const [formData, setFormData] = useState<SettingsData>(initialData);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -70,9 +71,10 @@ export default function AdminSettingsForm({ initialData, onSave }: AdminSettings
             type="submit"
             data-testid="button-save-settings"
             className="w-full h-11 font-display uppercase tracking-wide"
+            disabled={isSaving}
           >
             <Save className="w-4 h-4 mr-2" />
-            Save Settings
+            {isSaving ? "Saving..." : "Save Settings"}
           </Button>
         </form>
       </CardContent>

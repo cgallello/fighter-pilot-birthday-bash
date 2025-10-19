@@ -1,101 +1,157 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import HeroSection from "@/components/HeroSection";
 import RegistrationForm from "@/components/RegistrationForm";
 import ScheduleColumns from "@/components/ScheduleColumns";
 import MissionBioEditor from "@/components/MissionBioEditor";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
 import { Plane } from "lucide-react";
 
+interface EventBlock {
+  id: string;
+  title: string;
+  description: string;
+  startTime: string;
+  endTime?: string;
+  location: string;
+  planType: "FAIR" | "RAIN";
+  sortOrder: number;
+}
+
+interface Guest {
+  id: string;
+  name: string;
+  phone: string;
+  phoneVerified: boolean;
+  description?: string | null;
+}
+
+interface Rsvp {
+  id: string;
+  guestId: string;
+  eventBlockId: string;
+  status: "JOINED" | "DECLINED";
+}
+
+interface Settings {
+  eventTitle: string;
+  eventDescription: string;
+}
+
 export default function Landing() {
-  const [guestData, setGuestData] = useState<any>(null);
+  const [guestData, setGuestData] = useState<Guest | null>(null);
   const [rsvps, setRsvps] = useState<Set<string>>(new Set());
+  const { toast } = useToast();
 
-  //todo: remove mock functionality
-  const mockFairEvents = [
-    {
-      id: "fair-1",
-      title: "Pre-Flight Briefing",
-      description: "Mission objectives and safety protocols. All pilots must attend this crucial briefing.",
-      startTime: new Date("2025-03-15T14:00:00"),
-      endTime: new Date("2025-03-15T15:00:00"),
-      location: "Command Center, 123 Squadron Ave",
-      planType: "FAIR" as const,
-      sortOrder: 1,
-    },
-    {
-      id: "fair-2",
-      title: "Outdoor Flight Exercises",
-      description: "Tactical maneuvers and formation flying in perfect weather conditions.",
-      startTime: new Date("2025-03-15T15:30:00"),
-      endTime: new Date("2025-03-15T17:00:00"),
-      location: "Airfield Training Ground, Runway 7",
-      planType: "FAIR" as const,
-      sortOrder: 2,
-    },
-    {
-      id: "fair-3",
-      title: "Victory Celebration",
-      description: "Cake cutting ceremony and awards for outstanding pilots!",
-      startTime: new Date("2025-03-15T17:30:00"),
-      endTime: new Date("2025-03-15T19:00:00"),
-      location: "Officers' Club, Building 35",
-      planType: "FAIR" as const,
-      sortOrder: 3,
-    },
-  ];
+  // Fetch settings
+  const { data: settings } = useQuery<Settings>({
+    queryKey: ["/api/settings"],
+  });
 
-  const mockRainEvents = [
-    {
-      id: "rain-1",
-      title: "Indoor Simulator Training",
-      description: "State-of-the-art flight simulation with weather effects and tactical scenarios.",
-      startTime: new Date("2025-03-15T14:00:00"),
-      endTime: new Date("2025-03-15T16:00:00"),
-      location: "Hangar 5, Simulator Bay",
-      planType: "RAIN" as const,
-      sortOrder: 1,
-    },
-    {
-      id: "rain-2",
-      title: "Strategic Planning Workshop",
-      description: "Learn advanced mission planning techniques from our best commanders.",
-      startTime: new Date("2025-03-15T16:30:00"),
-      endTime: new Date("2025-03-15T17:30:00"),
-      location: "Conference Room Alpha, HQ Building",
-      planType: "RAIN" as const,
-      sortOrder: 2,
-    },
-    {
-      id: "rain-3",
-      title: "Victory Celebration (Indoor)",
-      description: "Cake cutting ceremony and awards in our climate-controlled hangar!",
-      startTime: new Date("2025-03-15T18:00:00"),
-      endTime: new Date("2025-03-15T19:30:00"),
-      location: "Hangar 35, Main Floor",
-      planType: "RAIN" as const,
-      sortOrder: 3,
-    },
-  ];
+  // Fetch events
+  const { data: eventsData, isLoading: eventsLoading } = useQuery<{
+    fair: EventBlock[];
+    rain: EventBlock[];
+  }>({
+    queryKey: ["/api/events"],
+  });
 
-  const handleRegister = (data: any) => {
-    console.log("Guest registered:", data);
-    setGuestData(data);
+  // Fetch guest RSVPs when guest is registered
+  const { data: guestRsvps } = useQuery<Rsvp[]>({
+    queryKey: ["/api/rsvp/guest", guestData?.id],
+    enabled: !!guestData?.id,
+  });
+
+  // Update local RSVPs when data loads
+  useEffect(() => {
+    if (guestRsvps) {
+      const rsvpSet = new Set(
+        guestRsvps
+          .filter((r) => r.status === "JOINED")
+          .map((r) => r.eventBlockId)
+      );
+      setRsvps(rsvpSet);
+    }
+  }, [guestRsvps]);
+
+  // Create guest mutation
+  const createGuestMutation = useMutation({
+    mutationFn: async (data: { name: string; phone: string }) => {
+      const res = await apiRequest("POST", "/api/guests", data);
+      return await res.json() as Guest;
+    },
+    onSuccess: (guest: Guest) => {
+      setGuestData(guest);
+      toast({
+        title: "✅ Registration Complete",
+        description: "Welcome to the squadron, pilot!",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "❌ Registration Failed",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // RSVP mutation
+  const rsvpMutation = useMutation({
+    mutationFn: async (data: { guestId: string; eventBlockId: string; status: "JOINED" | "DECLINED" }) => {
+      const res = await apiRequest("POST", "/api/rsvp", data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rsvp/guest", guestData?.id] });
+    },
+  });
+
+  const handleRegister = (data: { name: string; phone: string }) => {
+    createGuestMutation.mutate(data);
   };
 
   const handleToggleRSVP = (eventId: string, joined: boolean) => {
-    setRsvps((prev) => {
-      const newSet = new Set(prev);
-      if (joined) {
-        newSet.add(eventId);
-      } else {
-        newSet.delete(eventId);
-      }
-      return newSet;
+    if (!guestData) {
+      toast({
+        title: "⚠️ Registration Required",
+        description: "Please complete your registration first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newSet = new Set(rsvps);
+    if (joined) {
+      newSet.add(eventId);
+    } else {
+      newSet.delete(eventId);
+    }
+    setRsvps(newSet);
+
+    rsvpMutation.mutate({
+      guestId: guestData.id,
+      eventBlockId: eventId,
+      status: joined ? "JOINED" : "DECLINED",
     });
   };
 
   const isRegistered = !!guestData;
+
+  const fairEvents = eventsData?.fair.map(e => ({
+    ...e,
+    startTime: new Date(e.startTime),
+    endTime: e.endTime ? new Date(e.endTime) : undefined,
+  })) || [];
+
+  const rainEvents = eventsData?.rain.map(e => ({
+    ...e,
+    startTime: new Date(e.startTime),
+    endTime: e.endTime ? new Date(e.endTime) : undefined,
+  })) || [];
 
   return (
     <div className="min-h-screen">
@@ -120,8 +176,11 @@ export default function Landing() {
 
       {/* Hero */}
       <HeroSection
-        title="OPERATION: THIRTY-FIVE"
-        description="Mission Briefing: You are cleared for the ultimate birthday celebration. Confirm your deployment slot and prepare for tactical fun at 35,000 feet of awesome!"
+        title={settings?.eventTitle || "OPERATION: THIRTY-FIVE"}
+        description={
+          settings?.eventDescription ||
+          "Mission Briefing: You are cleared for the ultimate birthday celebration. Confirm your deployment slot and prepare for tactical fun at 35,000 feet of awesome!"
+        }
       />
 
       {/* Schedule Section */}
@@ -136,12 +195,16 @@ export default function Landing() {
             </p>
           </div>
 
-          <ScheduleColumns
-            fairEvents={mockFairEvents}
-            rainEvents={mockRainEvents}
-            userRSVPs={rsvps}
-            onToggleRSVP={handleToggleRSVP}
-          />
+          {eventsLoading ? (
+            <div className="text-center text-muted-foreground">Loading mission details...</div>
+          ) : (
+            <ScheduleColumns
+              fairEvents={fairEvents}
+              rainEvents={rainEvents}
+              userRSVPs={rsvps}
+              onToggleRSVP={handleToggleRSVP}
+            />
+          )}
         </div>
       </section>
 
@@ -158,7 +221,22 @@ export default function Landing() {
           </div>
 
           <div className="max-w-md mx-auto">
-            <RegistrationForm onRegister={handleRegister} />
+            {isRegistered ? (
+              <div className="bg-card border border-card-border rounded-lg p-6 text-center">
+                <div className="text-6xl mb-4">✅</div>
+                <h3 className="font-display text-2xl uppercase tracking-wide mb-2">
+                  You're Registered!
+                </h3>
+                <p className="text-muted-foreground mb-4">
+                  Callsign: <span className="font-bold">{guestData.name}</span>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Scramble Line: {guestData.phone}
+                </p>
+              </div>
+            ) : (
+              <RegistrationForm onRegister={handleRegister} />
+            )}
           </div>
 
           {isRegistered && rsvps.size > 0 && (
@@ -183,10 +261,16 @@ export default function Landing() {
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl">
                   <MissionBioEditor
-                    phone={guestData?.phone}
-                    onSave={(bio) => console.log("Bio saved:", bio)}
-                    onRequestCode={(phone) => console.log("Code requested:", phone)}
-                    onVerifyCode={(code) => console.log("Code verified:", code)}
+                    guestId={guestData.id}
+                    currentBio={guestData.description}
+                    phone={guestData.phone}
+                    onBioSaved={() => {
+                      queryClient.invalidateQueries({ queryKey: ["/api/guests", guestData.id] });
+                      toast({
+                        title: "✅ Bio Updated",
+                        description: "Your mission bio has been saved",
+                      });
+                    }}
                   />
                 </DialogContent>
               </Dialog>

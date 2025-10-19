@@ -1,66 +1,148 @@
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 import SmsCodeInput from "./SmsCodeInput";
 import { Shield, Send, CheckCircle2 } from "lucide-react";
 
 type Step = "verify-phone" | "enter-code" | "edit-bio";
 
 interface MissionBioEditorProps {
-  currentBio?: string;
+  guestId: string;
+  currentBio?: string | null;
   phone?: string;
-  onSave: (bio: string) => void;
-  onRequestCode: (phone: string) => void;
-  onVerifyCode: (code: string) => void;
+  onBioSaved?: () => void;
 }
 
 export default function MissionBioEditor({
+  guestId,
   currentBio = "",
   phone = "",
-  onSave,
-  onRequestCode,
-  onVerifyCode,
+  onBioSaved,
 }: MissionBioEditorProps) {
   const [step, setStep] = useState<Step>("verify-phone");
   const [phoneNumber, setPhoneNumber] = useState(phone);
-  const [bio, setBio] = useState(currentBio);
-  const [codeSent, setCodeSent] = useState(false);
+  const [bio, setBio] = useState(currentBio || "");
   const [countdown, setCountdown] = useState(0);
+  const [editToken, setEditToken] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  // Send SMS code mutation
+  const sendCodeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/auth/sms/start", {
+        guestId,
+        phone: phoneNumber !== phone ? phoneNumber : undefined,
+      });
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "📱 Code Sent",
+        description: "Check your phone for the verification code",
+      });
+      setStep("enter-code");
+      
+      // Start countdown
+      setCountdown(60);
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "❌ Failed to Send Code",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Verify code mutation
+  const verifyCodeMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const res = await apiRequest("POST", "/api/auth/sms/verify", {
+        guestId,
+        code,
+      });
+      return await res.json() as { success: boolean; editToken: string };
+    },
+    onSuccess: (data) => {
+      setEditToken(data.editToken);
+      setStep("edit-bio");
+      toast({
+        title: "✅ Verified",
+        description: "You can now edit your mission bio",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "❌ Invalid Code",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Save bio mutation
+  const saveBioMutation = useMutation({
+    mutationFn: async () => {
+      if (!editToken) throw new Error("No edit token");
+      
+      const res = await fetch(`/api/auth/guests/${guestId}/description`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${editToken}`,
+        },
+        body: JSON.stringify({ description: bio }),
+        credentials: "include",
+      });
+      
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Failed to save bio");
+      }
+      
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "✅ Bio Saved",
+        description: "Your mission bio has been updated",
+      });
+      onBioSaved?.();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "❌ Failed to Save",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleSendCode = () => {
-    console.log("Sending code to:", phoneNumber);
-    onRequestCode(phoneNumber);
-    setCodeSent(true);
-    setCountdown(60);
-    setStep("enter-code");
-
-    // Countdown timer
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    sendCodeMutation.mutate();
   };
 
   const handleCodeComplete = (code: string) => {
-    console.log("Verifying code:", code);
-    onVerifyCode(code);
-    // Simulate success
-    setTimeout(() => {
-      setStep("edit-bio");
-    }, 500);
+    verifyCodeMutation.mutate(code);
   };
 
   const handleSaveBio = () => {
-    console.log("Saving bio:", bio);
-    onSave(bio);
+    saveBioMutation.mutate();
   };
 
   return (
@@ -97,15 +179,24 @@ export default function MissionBioEditor({
                 placeholder="+1 (555) 000-0000"
                 className="h-11"
               />
+              <p className="text-xs text-muted-foreground">
+                We'll send a verification code to this number
+              </p>
             </div>
             <Button
               data-testid="button-send-code"
               onClick={handleSendCode}
-              disabled={!phoneNumber}
+              disabled={!phoneNumber || sendCodeMutation.isPending}
               className="w-full h-11 font-display uppercase tracking-wide"
             >
-              <Send className="w-4 h-4 mr-2" />
-              Send Scramble Code
+              {sendCodeMutation.isPending ? (
+                "Sending..."
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Scramble Code
+                </>
+              )}
             </Button>
           </div>
         )}
@@ -113,6 +204,12 @@ export default function MissionBioEditor({
         {step === "enter-code" && (
           <div className="space-y-6">
             <SmsCodeInput onComplete={handleCodeComplete} />
+            
+            {verifyCodeMutation.isPending && (
+              <p className="text-center text-sm text-muted-foreground">
+                Verifying code...
+              </p>
+            )}
             
             <div className="text-center space-y-2">
               {countdown > 0 ? (
@@ -124,6 +221,7 @@ export default function MissionBioEditor({
                   variant="ghost"
                   data-testid="button-resend-code"
                   onClick={handleSendCode}
+                  disabled={sendCodeMutation.isPending}
                   className="text-sm"
                 >
                   Resend Code
@@ -163,9 +261,10 @@ export default function MissionBioEditor({
             <Button
               data-testid="button-save-bio"
               onClick={handleSaveBio}
+              disabled={saveBioMutation.isPending}
               className="w-full h-11 font-display uppercase tracking-wide"
             >
-              Save Mission Bio
+              {saveBioMutation.isPending ? "Saving..." : "Save Mission Bio"}
             </Button>
           </div>
         )}

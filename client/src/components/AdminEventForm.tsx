@@ -20,9 +20,10 @@ interface AdminEventFormProps {
   initialData?: Partial<EventFormData>;
   onSave: (data: EventFormData) => void;
   onCancel?: () => void;
+  isSaving?: boolean;
 }
 
-export default function AdminEventForm({ initialData, onSave, onCancel }: AdminEventFormProps) {
+export default function AdminEventForm({ initialData, onSave, onCancel, isSaving }: AdminEventFormProps) {
   const [formData, setFormData] = useState<EventFormData>({
     title: initialData?.title || "",
     description: initialData?.description || "",
@@ -149,8 +150,9 @@ export default function AdminEventForm({ initialData, onSave, onCancel }: AdminE
               type="submit"
               data-testid="button-save-event"
               className="flex-1 font-display uppercase tracking-wide"
+              disabled={isSaving}
             >
-              {isEditing ? "Update Event" : "Create Event"}
+              {isSaving ? "Saving..." : isEditing ? "Update Event" : "Create Event"}
             </Button>
             {onCancel && (
               <Button
