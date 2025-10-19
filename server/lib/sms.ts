@@ -21,28 +21,51 @@ async function getTwilioCredentials(): Promise<TwilioCredentials | null> {
       ? 'depl ' + process.env.WEB_REPL_RENEWAL 
       : null;
 
+    console.log('[Twilio Debug] Hostname:', hostname ? 'Found' : 'Missing');
+    console.log('[Twilio Debug] Token:', xReplitToken ? 'Found' : 'Missing');
+
     if (!hostname || !xReplitToken) {
+      console.log('[Twilio Debug] Missing credentials, returning null');
       return null;
     }
 
-    const response = await fetch(
-      'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=twilio',
-      {
-        headers: {
-          'Accept': 'application/json',
-          'X_REPLIT_TOKEN': xReplitToken
-        }
+    const url = 'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=twilio';
+    console.log('[Twilio Debug] Fetching from:', url);
+
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'X_REPLIT_TOKEN': xReplitToken
       }
-    );
+    });
+
+    console.log('[Twilio Debug] Response status:', response.status);
 
     const data = await response.json();
+    console.log('[Twilio Debug] Response data:', JSON.stringify(data, null, 2));
+
     const connectionSettings = data.items?.[0];
 
-    if (!connectionSettings || !connectionSettings.settings.account_sid || 
-        !connectionSettings.settings.api_key || !connectionSettings.settings.api_key_secret) {
+    if (!connectionSettings) {
+      console.log('[Twilio Debug] No connection settings found');
       return null;
     }
 
+    console.log('[Twilio Debug] Settings available:', {
+      hasAccountSid: !!connectionSettings.settings?.account_sid,
+      hasApiKey: !!connectionSettings.settings?.api_key,
+      hasApiKeySecret: !!connectionSettings.settings?.api_key_secret,
+      hasPhoneNumber: !!connectionSettings.settings?.phone_number
+    });
+
+    if (!connectionSettings.settings.account_sid || 
+        !connectionSettings.settings.api_key || 
+        !connectionSettings.settings.api_key_secret) {
+      console.log('[Twilio Debug] Missing required settings');
+      return null;
+    }
+
+    console.log('[Twilio Debug] Successfully retrieved credentials');
     return {
       accountSid: connectionSettings.settings.account_sid,
       apiKey: connectionSettings.settings.api_key,
@@ -50,13 +73,14 @@ async function getTwilioCredentials(): Promise<TwilioCredentials | null> {
       phoneNumber: connectionSettings.settings.phone_number
     };
   } catch (error) {
-    console.error("Failed to fetch Twilio credentials:", error);
+    console.error("[Twilio Debug] Failed to fetch Twilio credentials:", error);
     return null;
   }
 }
 
 class TwilioSmsProvider implements SmsProvider {
   async sendSms(to: string, message: string): Promise<void> {
+    console.log('[Twilio Debug] sendSms called for:', to);
     try {
       const credentials = await getTwilioCredentials();
       
@@ -65,18 +89,21 @@ class TwilioSmsProvider implements SmsProvider {
         return;
       }
 
+      console.log('[Twilio Debug] Creating Twilio client...');
       const twilioClient = twilio(credentials.apiKey, credentials.apiKeySecret, {
         accountSid: credentials.accountSid
       });
 
-      await twilioClient.messages.create({
+      console.log('[Twilio Debug] Sending message from:', credentials.phoneNumber, 'to:', to);
+      const result = await twilioClient.messages.create({
         body: message,
         from: credentials.phoneNumber,
         to: to,
       });
+      console.log('[Twilio Debug] SMS sent successfully! SID:', result.sid);
       console.log(`SMS sent successfully to ${to}`);
     } catch (error) {
-      console.error("Failed to send SMS:", error);
+      console.error("[Twilio Debug] Failed to send SMS:", error);
       // Log to console instead of sending SMS in dev mode if Twilio fails
       console.log(`[SMS - FALLBACK] Would send to ${to}: ${message}`);
     }
