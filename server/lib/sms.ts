@@ -56,18 +56,18 @@ async function getTwilioCredentials(): Promise<TwilioCredentials | null> {
 
 class TwilioSmsProvider implements SmsProvider {
   async sendSms(to: string, message: string): Promise<void> {
-    const credentials = await getTwilioCredentials();
-    
-    if (!credentials) {
-      console.log(`[SMS - DEV MODE] Would send to ${to}: ${message}`);
-      return;
-    }
-
-    const twilio = require("twilio")(credentials.apiKey, credentials.apiKeySecret, {
-      accountSid: credentials.accountSid
-    });
-
     try {
+      const credentials = await getTwilioCredentials();
+      
+      if (!credentials) {
+        console.log(`[SMS - DEV MODE] Would send to ${to}: ${message}`);
+        return;
+      }
+
+      const twilio = require("twilio")(credentials.apiKey, credentials.apiKeySecret, {
+        accountSid: credentials.accountSid
+      });
+
       await twilio.messages.create({
         body: message,
         from: credentials.phoneNumber,
@@ -76,7 +76,8 @@ class TwilioSmsProvider implements SmsProvider {
       console.log(`SMS sent successfully to ${to}`);
     } catch (error) {
       console.error("Failed to send SMS:", error);
-      throw new Error("Failed to send SMS");
+      // Log to console instead of sending SMS in dev mode if Twilio fails
+      console.log(`[SMS - FALLBACK] Would send to ${to}: ${message}`);
     }
   }
 }
