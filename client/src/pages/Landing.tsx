@@ -83,12 +83,29 @@ export default function Landing() {
       const res = await apiRequest("POST", "/api/guests", data);
       return await res.json() as Guest;
     },
-    onSuccess: (guest: Guest) => {
+    onSuccess: async (guest: Guest) => {
       setGuestData(guest);
+      
+      // Create RSVPs for all selected events
+      const selectedEvents = Array.from(rsvps);
+      if (selectedEvents.length > 0) {
+        await Promise.all(
+          selectedEvents.map((eventId) =>
+            apiRequest("POST", "/api/rsvp", {
+              guestId: guest.id,
+              eventBlockId: eventId,
+              status: "JOINED",
+            })
+          )
+        );
+      }
+      
       toast({
         title: "✅ Registration Complete",
-        description: "Welcome to the squadron, pilot!",
+        description: `Welcome to the squadron, pilot! ${selectedEvents.length} mission${selectedEvents.length === 1 ? '' : 's'} confirmed.`,
       });
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/rsvp/guest", guest.id] });
     },
     onError: () => {
       toast({
@@ -115,15 +132,6 @@ export default function Landing() {
   };
 
   const handleToggleRSVP = (eventId: string, joined: boolean) => {
-    if (!guestData) {
-      toast({
-        title: "⚠️ Registration Required",
-        description: "Please complete your registration first",
-        variant: "destructive",
-      });
-      return;
-    }
-
     const newSet = new Set(rsvps);
     if (joined) {
       newSet.add(eventId);
@@ -132,11 +140,14 @@ export default function Landing() {
     }
     setRsvps(newSet);
 
-    rsvpMutation.mutate({
-      guestId: guestData.id,
-      eventBlockId: eventId,
-      status: joined ? "JOINED" : "DECLINED",
-    });
+    // If already registered, save RSVP immediately
+    if (guestData) {
+      rsvpMutation.mutate({
+        guestId: guestData.id,
+        eventBlockId: eventId,
+        status: joined ? "JOINED" : "DECLINED",
+      });
+    }
   };
 
   const isRegistered = !!guestData;
@@ -216,9 +227,24 @@ export default function Landing() {
               Complete Your Registration
             </h2>
             <p className="text-muted-foreground text-lg">
-              Enter your info to confirm your RSVPs
+              {rsvps.size > 0 
+                ? `Enter your info to confirm ${rsvps.size} mission${rsvps.size === 1 ? '' : 's'}`
+                : "Select missions above, then enter your info to confirm"}
             </p>
           </div>
+
+          {/* Mission Count Display */}
+          {!isRegistered && rsvps.size > 0 && (
+            <div className="mb-8 max-w-md mx-auto p-6 bg-primary/10 border-2 border-primary rounded-lg">
+              <h3 className="font-display font-bold text-lg uppercase tracking-wide mb-2 text-center">
+                Missions Selected
+              </h3>
+              <p className="text-center">
+                <span className="font-bold text-primary text-4xl" data-testid="text-mission-count">{rsvps.size}</span>{" "}
+                {rsvps.size === 1 ? "mission" : "missions"} ready for confirmation
+              </p>
+            </div>
+          )}
 
           <div className="max-w-md mx-auto">
             {isRegistered ? (
