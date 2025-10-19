@@ -42,10 +42,15 @@ export const eventBlocks = pgTable("event_blocks", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertEventBlockSchema = createInsertSchema(eventBlocks).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertEventBlockSchema = createInsertSchema(eventBlocks)
+  .omit({
+    id: true,
+    createdAt: true,
+  })
+  .extend({
+    startTime: z.string().transform((val) => new Date(val)),
+    endTime: z.string().optional().nullable().transform((val) => val ? new Date(val) : null),
+  });
 
 export type InsertEventBlock = z.infer<typeof insertEventBlockSchema>;
 export type EventBlock = typeof eventBlocks.$inferSelect;

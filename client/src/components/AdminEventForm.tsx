@@ -11,7 +11,6 @@ interface EventFormData {
   title: string;
   description: string;
   startTime: string;
-  endTime: string;
   location: string;
   planType: "FAIR" | "RAIN";
 }
@@ -28,7 +27,6 @@ export default function AdminEventForm({ initialData, onSave, onCancel, isSaving
     title: initialData?.title || "",
     description: initialData?.description || "",
     startTime: initialData?.startTime || "",
-    endTime: initialData?.endTime || "",
     location: initialData?.location || "",
     planType: initialData?.planType || "FAIR",
   });
@@ -102,33 +100,18 @@ export default function AdminEventForm({ initialData, onSave, onCancel, isSaving
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="start-time" className="text-sm font-medium uppercase tracking-wide">
-                Start Time
-              </Label>
-              <Input
-                id="start-time"
-                data-testid="input-start-time"
-                type="datetime-local"
-                value={formData.startTime}
-                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="end-time" className="text-sm font-medium uppercase tracking-wide">
-                End Time
-              </Label>
-              <Input
-                id="end-time"
-                data-testid="input-end-time"
-                type="datetime-local"
-                value={formData.endTime}
-                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="start-time" className="text-sm font-medium uppercase tracking-wide">
+              Start Time
+            </Label>
+            <Input
+              id="start-time"
+              data-testid="input-start-time"
+              type="datetime-local"
+              value={formData.startTime}
+              onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+              required
+            />
           </div>
 
           <div className="space-y-2">
