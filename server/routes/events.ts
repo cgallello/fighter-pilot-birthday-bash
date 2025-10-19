@@ -26,6 +26,9 @@ router.get("/", async (req, res) => {
 // Create event block (admin only)
 router.post("/", requireAdmin, validateRequest(insertEventBlockSchema), async (req, res) => {
   try {
+    console.log("Received event data:", JSON.stringify(req.body, null, 2));
+    console.log("startTime type:", typeof req.body.startTime, req.body.startTime);
+    console.log("endTime type:", typeof req.body.endTime, req.body.endTime);
     const block = await storage.createEventBlock(req.body);
     res.json(block);
   } catch (error) {
