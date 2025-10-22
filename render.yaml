@@ -2,6 +2,7 @@ services:
   # PostgreSQL Database (must be defined first)
   - type: pserv
     name: mydatabase
+    env: docker
     plan: free
 
   # Full-stack Web Service (Frontend + Backend)
