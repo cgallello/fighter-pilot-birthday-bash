@@ -1,8 +1,7 @@
 services:
   # PostgreSQL Database (must be defined first)
   - type: pserv
-    name: fighterpilotdb
-    env: docker
+    name: mydatabase
     plan: free
 
   # Full-stack Web Service (Frontend + Backend)
@@ -17,7 +16,7 @@ services:
         value: production
       - key: DATABASE_URL
         fromDatabase:
-          name: fighterpilotdb
+          name: mydatabase
           property: connectionString
       - key: SESSION_SECRET
         generateValue: true
