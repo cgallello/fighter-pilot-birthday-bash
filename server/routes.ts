@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import helmet from "helmet";
+import { pool } from "./db";
 import adminRoutes from "./routes/admin";
 import settingsRoutes from "./routes/settings";
 import eventsRoutes from "./routes/events";
@@ -19,20 +20,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Session management
   const sessionSecret = process.env.SESSION_SECRET || "fallback-secret-change-in-production";
-  
-  app.use(
-    session({
-      secret: sessionSecret,
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      },
-    })
-  );
+
+  // Configure session store - use PostgreSQL for production, memory for development
+  let sessionConfig: session.SessionOptions = {
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
+  };
+
+  // Use PostgreSQL session store in production
+  if (process.env.NODE_ENV === "production" && !process.env.DATABASE_URL?.startsWith('file:')) {
+    const pgSession = require("connect-pg-simple")(session);
+    sessionConfig.store = new pgSession({
+      pool: pool,
+      tableName: "user_sessions", // Will be auto-created
+      createTableIfMissing: true,
+    });
+  }
+
+  app.use(session(sessionConfig));
 
   // Register API routes
   app.use("/api/admin", adminRoutes);
