@@ -8,9 +8,9 @@ interface HeroSectionProps {
 
 export default function HeroSection({ title, description }: HeroSectionProps) {
   return (
-    <div className="relative min-h-[70vh] flex items-center justify-center overflow-hidden">
+    <div className="relative h-[50vh] sm:h-[60vh] lg:h-[70vh] flex items-center justify-center overflow-hidden">
       <div
-        className="absolute inset-0 bg-cover bg-center"
+        className="absolute inset-0 bg-cover bg-[center_20%] sm:bg-center"
         style={{ backgroundImage: `url(${heroImage})` }}
       >
         <div className="absolute inset-0 bg-gradient-to-t from-jet-gray/40 via-jet-gray/20 to-transparent" />
@@ -19,13 +19,13 @@ export default function HeroSection({ title, description }: HeroSectionProps) {
       <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
         <div className="flex items-center justify-center gap-3 mb-6">
           <Plane className="w-12 h-12 text-cloud-white" />
-          <h1 className="font-display font-bold text-6xl md:text-7xl text-cloud-white tracking-wide uppercase">
+          <h1 className="font-display font-bold text-4xl sm:text-6xl md:text-7xl text-cloud-white tracking-wide uppercase">
             {title}
           </h1>
           <Plane className="w-12 h-12 text-cloud-white transform scale-x-[-1]" />
         </div>
         
-        <p className="text-xl md:text-2xl text-cloud-white/95 font-medium mb-8 leading-relaxed">
+        <p className="text-lg sm:text-xl md:text-2xl text-cloud-white/95 font-medium mb-8 leading-relaxed">
           {description}
         </p>
       </div>

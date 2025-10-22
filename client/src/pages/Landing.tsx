@@ -429,20 +429,20 @@ export default function Landing() {
     <div className="min-h-screen">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Plane className="w-6 h-6 text-primary" />
-            <span className="font-display font-bold text-xl uppercase tracking-wide">
+        <div className="container mx-auto px-3 sm:px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-1 sm:gap-2">
+            <Plane className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+            <span className="font-display font-bold text-lg sm:text-xl uppercase tracking-wide">
               Operation: 35
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             {isRegistered ? (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleLogout}
-                className="text-sm font-display uppercase tracking-wide"
+                className="text-xs sm:text-sm font-display uppercase tracking-wide"
               >
                 RTB - Logout
               </Button>
@@ -452,7 +452,7 @@ export default function Landing() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-sm font-display uppercase tracking-wide"
+                    className="text-xs sm:text-sm font-display uppercase tracking-wide"
                   >
                     🛩️ Scramble In!
                   </Button>
@@ -498,7 +498,7 @@ export default function Landing() {
             <a
               href="/admin"
               data-testid="link-admin"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               Command Center
             </a>
