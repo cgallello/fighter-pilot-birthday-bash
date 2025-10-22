@@ -1,6 +1,5 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
 
 if (!process.env.DATABASE_URL) {
@@ -219,10 +218,9 @@ if (process.env.DATABASE_URL.startsWith('file:')) {
 
   pool = { query: () => {} };
 } else {
-  // Use Neon serverless setup for production
-  neonConfig.webSocketConstructor = ws;
+  // Use standard PostgreSQL setup for production
   pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  db = drizzle({ client: pool, schema });
+  db = drizzle(pool, { schema });
 }
 
 // Make mockData globally accessible for direct access in storage
