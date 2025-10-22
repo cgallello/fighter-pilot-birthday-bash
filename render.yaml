@@ -1,5 +1,5 @@
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database (must be defined first)
   - type: pserv
     name: fighter-pilot-db
     env: docker
@@ -18,9 +18,8 @@ services:
       - key: DATABASE_URL
         fromDatabase:
           name: fighter-pilot-db
-          property: databaseURL
+          property: connectionString
       - key: SESSION_SECRET
         generateValue: true
       - key: ADMIN_PASSWORD
         generateValue: true
-    autoDeploy: false
