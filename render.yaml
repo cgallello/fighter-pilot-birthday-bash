@@ -2,10 +2,8 @@ services:
   # PostgreSQL Database
   - type: pserv
     name: fighter-pilot-db
-    env: node
+    env: docker
     plan: free
-    databaseName: fighter_pilot_db
-    user: fighter_pilot_user
 
   # Full-stack Web Service (Frontend + Backend)
   - type: web
