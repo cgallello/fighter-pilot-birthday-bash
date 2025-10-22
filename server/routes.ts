@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import session from "express-session";
 import helmet from "helmet";
+import connectPgSimple from "connect-pg-simple";
 import { pool } from "./db";
 import adminRoutes from "./routes/admin";
 import settingsRoutes from "./routes/settings";
@@ -36,7 +37,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Use PostgreSQL session store in production
   if (process.env.NODE_ENV === "production" && !process.env.DATABASE_URL?.startsWith('file:')) {
-    const pgSession = require("connect-pg-simple")(session);
+    const pgSession = connectPgSimple(session);
     sessionConfig.store = new pgSession({
       pool: pool,
       tableName: "user_sessions", // Will be auto-created
