@@ -12,8 +12,11 @@ import {
   type Setting,
   type InsertSetting,
 } from "@shared/schema";
-import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { db, mockEq } from "./db";
+import { eq as drizzleEq, and, desc } from "drizzle-orm";
+
+// Use mock eq function in development, real eq function in production
+const eq = mockEq || drizzleEq;
 
 export interface IStorage {
   // Guest operations
@@ -45,8 +48,20 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  // Check if we're using the mock database
+  private isMockDatabase(): boolean {
+    return process.env.DATABASE_URL?.startsWith('file:') || false;
+  }
+
   // Guest operations
   async getGuest(id: string): Promise<Guest | undefined> {
+    if (this.isMockDatabase()) {
+      // Direct access to mock data for development
+      const mockData = (global as any).mockData || require('./db').mockData;
+      if (mockData && mockData.guests) {
+        return mockData.guests.get(id);
+      }
+    }
     const [guest] = await db.select().from(guests).where(eq(guests.id, id));
     return guest || undefined;
   }
@@ -66,6 +81,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateGuest(id: string, data: Partial<Omit<Guest, 'id' | 'createdAt'>>): Promise<Guest | undefined> {
+    if (this.isMockDatabase()) {
+      // Direct handling for mock database
+      const mockData = (global as any).mockData || require('./db').mockData;
+      if (mockData && mockData.guests) {
+        const existing = mockData.guests.get(id);
+        if (existing) {
+          const updated = { ...existing, ...data, updatedAt: new Date() };
+          mockData.guests.set(id, updated);
+          return updated;
+        }
+      }
+      return undefined;
+    }
+
     const [guest] = await db
       .update(guests)
       .set(data)
@@ -76,6 +105,13 @@ export class DatabaseStorage implements IStorage {
 
   // EventBlock operations
   async getAllEventBlocks(): Promise<EventBlock[]> {
+    if (this.isMockDatabase()) {
+      const mockData = (global as any).mockData;
+      if (mockData && mockData.eventBlocks) {
+        return Array.from(mockData.eventBlocks.values()).sort((a, b) => a.sortOrder - b.sortOrder);
+      }
+      return [];
+    }
     return await db.select().from(eventBlocks).orderBy(eventBlocks.sortOrder);
   }
 
@@ -115,6 +151,15 @@ export class DatabaseStorage implements IStorage {
 
   // RSVP operations
   async getRsvpsByGuest(guestId: string): Promise<Rsvp[]> {
+    if (this.isMockDatabase()) {
+      // Direct filtering for mock database
+      const mockData = (global as any).mockData || require('./db').mockData;
+      if (mockData && mockData.rsvps) {
+        const allRsvps = Array.from(mockData.rsvps.values());
+        return allRsvps.filter((rsvp: any) => rsvp.guestId === guestId);
+      }
+      return [];
+    }
     return await db.select().from(rsvps).where(eq(rsvps.guestId, guestId));
   }
 
@@ -127,16 +172,57 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllRsvpsWithGuests(): Promise<Array<Rsvp & { guest?: Guest }>> {
+    if (this.isMockDatabase()) {
+      const mockData = (global as any).mockData;
+      if (mockData && mockData.rsvps && mockData.guests) {
+        const allRsvps = Array.from(mockData.rsvps.values());
+        const allGuests = Array.from(mockData.guests.values());
+        return allRsvps.map((rsvp: any) => {
+          const guest = allGuests.find((g: any) => g.id === rsvp.guestId);
+          return { ...rsvp, guest };
+        });
+      }
+      return [];
+    }
     const allRsvps = await db.select().from(rsvps);
     const allGuests = await db.select().from(guests);
-    
-    return allRsvps.map((rsvp) => {
-      const guest = allGuests.find((g) => g.id === rsvp.guestId);
+
+    return allRsvps.map((rsvp: any) => {
+      const guest = allGuests.find((g: any) => g.id === rsvp.guestId);
       return { ...rsvp, guest };
     });
   }
 
   async upsertRsvp(rsvp: InsertRsvp): Promise<Rsvp> {
+    if (this.isMockDatabase()) {
+      // Direct mock database handling for upsert
+      const mockData = (global as any).mockData;
+      if (mockData && mockData.rsvps) {
+        const allRsvps = Array.from(mockData.rsvps.values());
+        const existing = allRsvps.find((r: any) =>
+          r.guestId === rsvp.guestId && r.eventBlockId === rsvp.eventBlockId
+        );
+
+        if (existing) {
+          // Update existing RSVP
+          const updated = { ...existing, status: rsvp.status, updatedAt: new Date() };
+          mockData.rsvps.set(existing.id, updated);
+          return updated;
+        } else {
+          // Create new RSVP
+          const id = `rsvp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const created = {
+            ...rsvp,
+            id,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          };
+          mockData.rsvps.set(id, created);
+          return created;
+        }
+      }
+    }
+
     const [existing] = await db
       .select()
       .from(rsvps)
@@ -163,6 +249,13 @@ export class DatabaseStorage implements IStorage {
 
   // Settings operations
   async getSetting(key: string): Promise<Setting | undefined> {
+    if (this.isMockDatabase()) {
+      const mockData = (global as any).mockData;
+      if (mockData && mockData.settings) {
+        return mockData.settings.get(key);
+      }
+      return undefined;
+    }
     const [setting] = await db.select().from(settings).where(eq(settings.key, key));
     return setting || undefined;
   }

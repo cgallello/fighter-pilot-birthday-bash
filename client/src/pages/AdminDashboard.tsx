@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +33,7 @@ interface Rsvp {
     name: string;
     phone: string;
     description?: string | null;
+    plusOnes: number;
   };
 }
 
@@ -42,6 +43,23 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("settings");
   const [showEventForm, setShowEventForm] = useState(false);
   const { toast } = useToast();
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const res = await apiRequest("GET", "/api/admin/session");
+        const data = await res.json();
+        if (data.authenticated) {
+          setIsAuthenticated(true);
+        }
+      } catch (error) {
+        // Session check failed, stay logged out
+      }
+    };
+
+    checkSession();
+  }, []);
 
   // Fetch settings
   const { data: settings } = useQuery<{ eventTitle: string; eventDescription: string }>({
@@ -191,6 +209,7 @@ export default function AdminDashboard() {
               email: "", // Not collected in our schema
               phone: r.guest!.phone,
               description: r.guest!.description || undefined,
+              plusOnes: r.guest!.plusOnes,
             }])
         ).values()
       )

@@ -11,6 +11,7 @@ interface Guest {
   email: string;
   phone: string;
   description?: string;
+  plusOnes: number;
 }
 
 interface EventBlock {
@@ -132,15 +133,22 @@ export default function AdminRosterView({ guests, events, rsvps }: AdminRosterVi
                   </div>
                   <div className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-radar-green" />
-                    <span className="font-medium">{eventGuests.length} attending</span>
+                    <span className="font-medium">{eventGuests.reduce((total, guest) => total + (guest.plusOnes || 1), 0)} attending</span>
                   </div>
                 </div>
                 {eventGuests.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {eventGuests.map((guest) => (
-                      <Badge key={guest.id} variant="secondary">
-                        {guest.name}
-                      </Badge>
+                      <div key={guest.id} className="flex items-center gap-1">
+                        <Badge variant="secondary">
+                          {guest.name}
+                        </Badge>
+                        {guest.plusOnes > 1 && (
+                          <Badge variant="outline" className="text-xs px-1.5 py-0.5">
+                            +{guest.plusOnes - 1}
+                          </Badge>
+                        )}
+                      </div>
                     ))}
                   </div>
                 ) : (

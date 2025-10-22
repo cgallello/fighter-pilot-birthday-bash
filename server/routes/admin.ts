@@ -15,18 +15,27 @@ const loginSchema = z.object({
 router.post("/login", rateLimitAuth, validateRequest(loginSchema), async (req, res) => {
   try {
     const { password } = req.body;
-    
+
     const isValid = await verifyAdminPassword(password);
-    
+
     if (!isValid) {
       return res.status(401).json({ error: "Invalid password" });
     }
-    
+
     req.session.isAdmin = true;
     res.json({ success: true });
   } catch (error) {
     console.error("Admin login error:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Check admin session
+router.get("/session", async (req, res) => {
+  if (req.session?.isAdmin) {
+    res.json({ authenticated: true });
+  } else {
+    res.json({ authenticated: false });
   }
 });
 

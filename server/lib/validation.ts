@@ -4,7 +4,9 @@ import { Request, Response, NextFunction } from "express";
 export function validateRequest(schema: z.ZodSchema) {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
+      console.log("[VALIDATION] Original req.body:", JSON.stringify(req.body, null, 2));
       const parsed = schema.parse(req.body);
+      console.log("[VALIDATION] Parsed result:", JSON.stringify(parsed, null, 2));
       req.body = parsed;
       next();
     } catch (error) {

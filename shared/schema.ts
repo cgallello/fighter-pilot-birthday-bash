@@ -14,6 +14,7 @@ export const guests = pgTable("guests", {
   phone: text("phone").notNull(),
   phoneVerified: boolean("phone_verified").notNull().default(false),
   description: text("description"),
+  plusOnes: integer("plus_ones").notNull().default(1),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   lastVerifiedAt: timestamp("last_verified_at"),
 });

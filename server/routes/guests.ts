@@ -3,6 +3,7 @@ import { storage } from "../storage";
 import { validateRequest } from "../lib/validation";
 import { insertGuestSchema } from "@shared/schema";
 import { normalizePhoneNumber } from "../lib/sms";
+import { generateEditToken } from "../lib/tokens";
 
 const router = Router();
 
@@ -20,18 +21,28 @@ router.post("/", validateRequest(insertGuestSchema), async (req, res) => {
     
     // Check if guest with this phone already exists
     const existing = await storage.getGuestByPhone(normalizedPhone);
-    
+
     if (existing) {
-      return res.json(existing);
+      // Phone number is already registered
+      return res.status(409).json({
+        error: "Phone number already registered",
+        message: "This phone number is already associated with an account. Use the phone login option to access your existing registration."
+      });
     }
-    
+
     const guest = await storage.createGuest({
       name,
       phone: normalizedPhone,
       description: description || null,
     });
-    
-    res.json(guest);
+
+    // Generate edit token for new guest
+    const editToken = generateEditToken(guest.id);
+
+    res.json({
+      ...guest,
+      editToken
+    });
   } catch (error) {
     console.error("Create guest error:", error);
     res.status(500).json({ error: "Internal server error" });

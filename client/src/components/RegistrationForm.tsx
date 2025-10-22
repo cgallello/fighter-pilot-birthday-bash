@@ -5,13 +5,14 @@ import { Label } from "@/components/ui/label";
 import { UserPlus } from "lucide-react";
 
 interface RegistrationFormProps {
-  onRegister: (data: { name: string; phone: string }) => void;
+  onRegister: (data: { name: string; phone: string; plusOnes: number }) => void;
 }
 
 export default function RegistrationForm({ onRegister }: RegistrationFormProps) {
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
+    plusOnes: 1,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -64,6 +65,26 @@ export default function RegistrationForm({ onRegister }: RegistrationFormProps) 
           />
           <p className="text-xs text-muted-foreground">
             Required for mission updates and editing your profile
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="plusOnes" className="text-sm font-medium uppercase tracking-wide">
+            Squadron Size
+          </Label>
+          <Input
+            id="plusOnes"
+            data-testid="input-plus-ones"
+            type="number"
+            min="1"
+            max="11"
+            placeholder="1"
+            value={formData.plusOnes}
+            onChange={(e) => setFormData({ ...formData, plusOnes: parseInt(e.target.value) || 1 })}
+            className="h-11"
+          />
+          <p className="text-xs text-muted-foreground">
+            Total number of pilots in your squadron (1-11)
           </p>
         </div>
 

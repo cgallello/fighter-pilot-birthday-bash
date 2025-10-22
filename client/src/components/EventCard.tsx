@@ -9,8 +9,8 @@ interface EventCardProps {
   id: string;
   title: string;
   description: string;
-  startTime: Date;
-  endTime?: Date;
+  startTime: Date | string;
+  endTime?: Date | string;
   location: string;
   planType: "FAIR" | "RAIN";
   isJoined?: boolean;
@@ -37,9 +37,34 @@ export default function EventCard({
     console.log(`${newState ? "Joined" : "Left"} event:`, title);
   };
 
+  // Helper function to format time - handles both Date objects and time strings
+  const formatTime = (time: Date | string): string => {
+    if (typeof time === 'string') {
+      // Handle time strings like "14:00"
+      if (time.includes(':')) {
+        const [hours, minutes] = time.split(':').map(Number);
+        if (!isNaN(hours) && !isNaN(minutes)) {
+          const date = new Date();
+          date.setHours(hours, minutes, 0, 0);
+          return format(date, "h:mm a");
+        }
+      }
+      // If string is not a valid time format, return as-is
+      return time;
+    }
+
+    // Handle Date objects
+    if (time instanceof Date && !isNaN(time.getTime())) {
+      return format(time, "h:mm a");
+    }
+
+    // Fallback for invalid values
+    return "Time TBD";
+  };
+
   const timeRange = endTime
-    ? `${format(startTime, "h:mm a")} - ${format(endTime, "h:mm a")}`
-    : format(startTime, "h:mm a");
+    ? `${formatTime(startTime)} - ${formatTime(endTime)}`
+    : formatTime(startTime);
 
   return (
     <Card className="hover-elevate transition-transform border-l-4 border-l-primary">
