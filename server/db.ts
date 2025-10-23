@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
@@ -219,8 +220,11 @@ if (process.env.DATABASE_URL.startsWith('file:')) {
   pool = { query: () => {} };
 } else {
   // Use standard PostgreSQL setup for production
-  pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  db = drizzle(pool, { schema });
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  });
+  db = drizzle({ client: pool, schema });
 }
 
 // Make mockData globally accessible for direct access in storage
