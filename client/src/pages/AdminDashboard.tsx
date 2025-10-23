@@ -9,7 +9,7 @@ import AdminLogin from "@/components/AdminLogin";
 import AdminSettingsForm from "@/components/AdminSettingsForm";
 import AdminEventForm from "@/components/AdminEventForm";
 import AdminRosterView from "@/components/AdminRosterView";
-import { Settings, Calendar, Users, Plus, Shield, LogOut } from "lucide-react";
+import { Settings, Calendar, Users, Plus, Shield, LogOut, Edit } from "lucide-react";
 import { useLocation } from "wouter";
 
 interface EventBlock {
@@ -42,6 +42,7 @@ export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState("settings");
   const [showEventForm, setShowEventForm] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<EventBlock | null>(null);
   const { toast } = useToast();
 
   // Check for existing session on mount
@@ -161,6 +162,34 @@ export default function AdminDashboard() {
     onError: () => {
       toast({
         title: "❌ Failed to Create Event",
+        description: "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update event mutation
+  const updateEventMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      const eventData = {
+        ...data,
+        startTime: new Date(data.startTime).toISOString(),
+        endTime: data.endTime ? new Date(data.endTime).toISOString() : null,
+      };
+      const res = await apiRequest("PUT", `/api/events/${id}`, eventData);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      setEditingEvent(null);
+      toast({
+        title: "✅ Event Updated",
+        description: "Mission block has been updated",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "❌ Failed to Update Event",
         description: "Please try again",
         variant: "destructive",
       });
@@ -295,7 +324,10 @@ export default function AdminDashboard() {
               </div>
               <Button
                 data-testid="button-create-event"
-                onClick={() => setShowEventForm(!showEventForm)}
+                onClick={() => {
+                  setShowEventForm(!showEventForm);
+                  setEditingEvent(null);
+                }}
                 className="font-display uppercase tracking-wide"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -303,11 +335,26 @@ export default function AdminDashboard() {
               </Button>
             </div>
 
-            {showEventForm && (
+            {showEventForm && !editingEvent && (
               <AdminEventForm
                 onSave={(data) => createEventMutation.mutate(data)}
                 onCancel={() => setShowEventForm(false)}
                 isSaving={createEventMutation.isPending}
+              />
+            )}
+
+            {editingEvent && (
+              <AdminEventForm
+                initialData={{
+                  title: editingEvent.title,
+                  description: editingEvent.description,
+                  startTime: new Date(editingEvent.startTime).toISOString().slice(0, 16),
+                  location: editingEvent.location,
+                  planType: editingEvent.planType,
+                }}
+                onSave={(data) => updateEventMutation.mutate({ id: editingEvent.id, data })}
+                onCancel={() => setEditingEvent(null)}
+                isSaving={updateEventMutation.isPending}
               />
             )}
 
@@ -323,6 +370,20 @@ export default function AdminDashboard() {
                       <p className="text-xs text-muted-foreground mt-1">{event.location}</p>
                     </div>
                     <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="font-display uppercase text-xs"
+                        onClick={() => {
+                          setEditingEvent(event);
+                          setShowEventForm(false);
+                        }}
+                        disabled={updateEventMutation.isPending}
+                        data-testid={`button-edit-event-${event.id}`}
+                      >
+                        <Edit className="w-3 h-3 mr-1" />
+                        Edit
+                      </Button>
                       <Button
                         variant="destructive"
                         size="sm"
