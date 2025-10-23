@@ -17,7 +17,6 @@ export default function RegistrationForm({ onRegister }: RegistrationFormProps) 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Registration submitted:", formData);
     onRegister(formData);
   };
 

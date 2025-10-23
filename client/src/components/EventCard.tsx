@@ -15,6 +15,10 @@ interface EventCardProps {
   planType: "FAIR" | "RAIN";
   isJoined?: boolean;
   onToggleRSVP: (eventId: string, joined: boolean) => void;
+  rsvps?: Array<{
+    guestName: string;
+    plusOnes: number;
+  }>;
 }
 
 export default function EventCard({
@@ -27,6 +31,7 @@ export default function EventCard({
   planType,
   isJoined = false,
   onToggleRSVP,
+  rsvps = [],
 }: EventCardProps) {
   const [joined, setJoined] = useState(isJoined);
 
@@ -93,6 +98,18 @@ export default function EventCard({
         </div>
 
         <p className="text-sm text-card-foreground leading-relaxed">{description}</p>
+
+        {/* RSVP List - styled like admin roster */}
+        {rsvps && rsvps.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {rsvps.map((rsvp, index) => (
+              <Badge key={index} variant="secondary">
+                {rsvp.guestName}{rsvp.plusOnes > 1 ? ` +${rsvp.plusOnes - 1}` : ''}
+              </Badge>
+            ))}
+          </div>
+        )}
+
 
         <Button
           data-testid={`button-rsvp-${id}`}

@@ -10,7 +10,7 @@ const router = Router();
 // Create guest
 router.post("/", validateRequest(insertGuestSchema), async (req, res) => {
   try {
-    const { name, phone, description } = req.body;
+    const { name, phone, description, plusOnes } = req.body;
     
     // Normalize phone number
     const normalizedPhone = normalizePhoneNumber(phone);
@@ -34,6 +34,7 @@ router.post("/", validateRequest(insertGuestSchema), async (req, res) => {
       name,
       phone: normalizedPhone,
       description: description || null,
+      plusOnes: plusOnes || 1,
     });
 
     // Generate edit token for new guest

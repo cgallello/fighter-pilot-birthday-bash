@@ -12,6 +12,10 @@ interface EventBlock {
   location: string;
   planType: "FAIR" | "RAIN";
   sortOrder: number;
+  rsvps?: Array<{
+    guestName: string;
+    plusOnes: number;
+  }>;
 }
 
 interface ScheduleColumnsProps {
@@ -48,6 +52,7 @@ export default function ScheduleColumns({
                 {...event}
                 isJoined={userRSVPs.has(event.id)}
                 onToggleRSVP={onToggleRSVP}
+                rsvps={event.rsvps}
               />
             ))}
           </div>
@@ -68,6 +73,7 @@ export default function ScheduleColumns({
                 {...event}
                 isJoined={userRSVPs.has(event.id)}
                 onToggleRSVP={onToggleRSVP}
+                rsvps={event.rsvps}
               />
             ))}
           </div>
@@ -103,6 +109,7 @@ export default function ScheduleColumns({
                 {...event}
                 isJoined={userRSVPs.has(event.id)}
                 onToggleRSVP={onToggleRSVP}
+                rsvps={event.rsvps}
               />
             ))}
           </TabsContent>
@@ -114,6 +121,7 @@ export default function ScheduleColumns({
                 {...event}
                 isJoined={userRSVPs.has(event.id)}
                 onToggleRSVP={onToggleRSVP}
+                rsvps={event.rsvps}
               />
             ))}
           </TabsContent>

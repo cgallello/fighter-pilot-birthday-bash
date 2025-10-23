@@ -188,6 +188,7 @@ export default function AdminDashboard() {
       });
     },
     onError: () => {
+      setEditingEvent(null);
       toast({
         title: "❌ Failed to Update Event",
         description: "Please try again",
@@ -343,20 +344,35 @@ export default function AdminDashboard() {
               />
             )}
 
-            {editingEvent && (
-              <AdminEventForm
-                initialData={{
-                  title: editingEvent.title,
-                  description: editingEvent.description,
-                  startTime: new Date(editingEvent.startTime).toISOString().slice(0, 16),
-                  location: editingEvent.location,
-                  planType: editingEvent.planType,
-                }}
-                onSave={(data) => updateEventMutation.mutate({ id: editingEvent.id, data })}
-                onCancel={() => setEditingEvent(null)}
-                isSaving={updateEventMutation.isPending}
-              />
-            )}
+            {editingEvent && (() => {
+              // Safe date conversion with error handling
+              let formattedStartTime = "";
+              try {
+                if (editingEvent.startTime) {
+                  const date = new Date(editingEvent.startTime);
+                  if (!isNaN(date.getTime())) {
+                    formattedStartTime = date.toISOString().slice(0, 16);
+                  }
+                }
+              } catch (error) {
+                console.error("Error formatting date:", error, editingEvent.startTime);
+              }
+
+              return (
+                <AdminEventForm
+                  initialData={{
+                    title: editingEvent.title,
+                    description: editingEvent.description,
+                    startTime: formattedStartTime,
+                    location: editingEvent.location,
+                    planType: editingEvent.planType,
+                  }}
+                  onSave={(data) => updateEventMutation.mutate({ id: editingEvent.id, data })}
+                  onCancel={() => setEditingEvent(null)}
+                  isSaving={updateEventMutation.isPending}
+                />
+              );
+            })()}
 
             <div className="space-y-4">
               {allEvents.map((event) => (
@@ -378,7 +394,7 @@ export default function AdminDashboard() {
                           setEditingEvent(event);
                           setShowEventForm(false);
                         }}
-                        disabled={updateEventMutation.isPending}
+                        disabled={updateEventMutation.isPending || editingEvent?.id === event.id}
                         data-testid={`button-edit-event-${event.id}`}
                       >
                         <Edit className="w-3 h-3 mr-1" />

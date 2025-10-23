@@ -147,7 +147,7 @@ if (process.env.DATABASE_URL.startsWith('file:')) {
 
           if (table === schema.guests) {
             mockData.guests.set(id, item);
-            console.log(`[MOCK_DB] Created new guest with ID: ${id}, phone: ${item.phone}`);
+            console.log(`[MOCK_DB] Created new guest with ID: ${id}, phone: ${item.phone}, plusOnes: ${item.plusOnes}`);
           } else if (table === schema.eventBlocks) {
             mockData.eventBlocks.set(id, item);
           } else if (table === schema.rsvps) {

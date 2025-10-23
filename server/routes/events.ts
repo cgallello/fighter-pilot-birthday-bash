@@ -11,14 +11,30 @@ const router = Router();
 router.get("/", async (req, res) => {
   try {
     const blocks = await storage.getAllEventBlocks();
-    
+    const allRsvps = await storage.getAllRsvpsWithGuests();
+
+    // Add RSVP data to each event
+    const blocksWithRsvps = blocks.map(block => {
+      const eventRsvps = allRsvps.filter(rsvp =>
+        rsvp.eventBlockId === block.id && rsvp.status === "JOINED"
+      );
+
+      return {
+        ...block,
+        rsvps: eventRsvps.map(rsvp => ({
+          guestName: rsvp.guest?.name || "Unknown",
+          plusOnes: rsvp.guest?.plusOnes || 1
+        }))
+      };
+    });
+
     // Group by plan type
-    const fair = blocks.filter((b) => b.planType === "FAIR");
-    const rain = blocks.filter((b) => b.planType === "RAIN");
-    
+    const fair = blocksWithRsvps.filter((b) => b.planType === "FAIR");
+    const rain = blocksWithRsvps.filter((b) => b.planType === "RAIN");
+
     res.json({ fair, rain });
   } catch (error) {
-    console.error("Get event blocks error:", error);
+    console.error("Get event blocks with RSVPs error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });

@@ -212,6 +212,7 @@ export default function Landing() {
       });
 
       queryClient.invalidateQueries({ queryKey: ["/api/rsvp/guest", guest.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
     },
     onError: () => {
       toast({
@@ -230,6 +231,7 @@ export default function Landing() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rsvp/guest", guestData?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
     },
   });
 
@@ -417,13 +419,13 @@ export default function Landing() {
     ...e,
     startTime: new Date(e.startTime),
     endTime: e.endTime ? new Date(e.endTime) : undefined,
-  })) || [];
+  })).sort((a, b) => a.startTime.getTime() - b.startTime.getTime()) || [];
 
   const rainEvents = eventsData?.rain.map(e => ({
     ...e,
     startTime: new Date(e.startTime),
     endTime: e.endTime ? new Date(e.endTime) : undefined,
-  })) || [];
+  })).sort((a, b) => a.startTime.getTime() - b.startTime.getTime()) || [];
 
   return (
     <div className="min-h-screen">
