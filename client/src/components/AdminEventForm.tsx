@@ -12,7 +12,7 @@ interface EventFormData {
   description: string;
   startTime: string;
   location: string;
-  planType: "FAIR" | "RAIN";
+  planType: "FAIR" | "RAIN" | "BOTH";
 }
 
 interface AdminEventFormProps {
@@ -70,7 +70,7 @@ export default function AdminEventForm({ initialData, onSave, onCancel, isSaving
               </Label>
               <Select
                 value={formData.planType}
-                onValueChange={(value: "FAIR" | "RAIN") =>
+                onValueChange={(value: "FAIR" | "RAIN" | "BOTH") =>
                   setFormData({ ...formData, planType: value })
                 }
               >
@@ -80,8 +80,14 @@ export default function AdminEventForm({ initialData, onSave, onCancel, isSaving
                 <SelectContent>
                   <SelectItem value="FAIR">☀️ Fair Weather</SelectItem>
                   <SelectItem value="RAIN">🌧️ Rain Plan</SelectItem>
+                  <SelectItem value="BOTH">🌤️ Both Plans</SelectItem>
                 </SelectContent>
               </Select>
+              {formData.planType === "BOTH" && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  This will create both Fair Weather and Rain versions. Rain plan will automatically add "Indoor" prefix where needed.
+                </p>
+              )}
             </div>
           </div>
 

@@ -143,20 +143,54 @@ export default function AdminDashboard() {
   // Create event mutation
   const createEventMutation = useMutation({
     mutationFn: async (data: any) => {
-      const eventData = {
+      const baseEventData = {
         ...data,
         startTime: new Date(data.startTime).toISOString(),
         endTime: data.endTime ? new Date(data.endTime).toISOString() : null,
       };
-      const res = await apiRequest("POST", "/api/events", eventData);
-      return await res.json();
+
+      if (data.planType === "BOTH") {
+        // Create both fair weather and rain events
+        const fairEvent = {
+          ...baseEventData,
+          planType: "FAIR",
+          location: data.location, // Use provided location for fair weather
+        };
+
+        const rainEvent = {
+          ...baseEventData,
+          planType: "RAIN",
+          title: data.title.includes("Indoor") ? data.title : `Indoor ${data.title}`,
+          description: data.description.includes("indoor") ? data.description : `${data.description} (indoor)`,
+          location: data.location.includes("Indoor") ? data.location : `Indoor ${data.location}`,
+        };
+
+        // Create both events
+        const [fairRes, rainRes] = await Promise.all([
+          apiRequest("POST", "/api/events", fairEvent),
+          apiRequest("POST", "/api/events", rainEvent)
+        ]);
+
+        return {
+          fair: await fairRes.json(),
+          rain: await rainRes.json()
+        };
+      } else {
+        // Create single event
+        const res = await apiRequest("POST", "/api/events", baseEventData);
+        return await res.json();
+      }
     },
-    onSuccess: () => {
+    onSuccess: (result, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       setShowEventForm(false);
+
+      const isBothPlan = variables.planType === "BOTH";
       toast({
-        title: "✅ Event Created",
-        description: "New mission block added to schedule",
+        title: isBothPlan ? "✅ Both Events Created" : "✅ Event Created",
+        description: isBothPlan
+          ? "Fair Weather and Rain mission blocks added to schedule"
+          : "New mission block added to schedule",
       });
     },
     onError: () => {

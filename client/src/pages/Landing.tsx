@@ -99,7 +99,7 @@ export default function Landing() {
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
   const [loginPhone, setLoginPhone] = useState("");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editData, setEditData] = useState({ name: "", phone: "", plusOnes: 1 });
+  const [editData, setEditData] = useState({ name: "", phone: "", plusOnes: "1" });
   const { toast } = useToast();
 
   // Fetch settings
@@ -349,44 +349,89 @@ export default function Landing() {
 
   const handleEditProfile = () => {
     if (guestData) {
-      setEditData({ name: guestData.name, phone: guestData.phone, plusOnes: guestData.plusOnes });
+      setEditData({ name: guestData.name, phone: guestData.phone, plusOnes: guestData.plusOnes.toString() });
       setEditDialogOpen(true);
     }
   };
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfileMutation.mutate(editData);
+
+    // Validate plusOnes is a number between 1-11
+    const plusOnesNum = parseInt(editData.plusOnes);
+    const validPlusOnes = !isNaN(plusOnesNum) && plusOnesNum >= 1 && plusOnesNum <= 11 ? plusOnesNum : 1;
+
+    updateProfileMutation.mutate({
+      ...editData,
+      plusOnes: validPlusOnes,
+    });
   };
 
   const handleToggleRSVP = (eventId: string, joined: boolean) => {
     const newSet = new Set(rsvps);
+
+    // Find the current event and its corresponding pair
+    const allEvents = [...(fairEvents || []), ...(rainEvents || [])];
+    const currentEvent = allEvents.find(e => e.id === eventId);
+    let correspondingEvent = null;
+
+    if (currentEvent) {
+      // Find the corresponding event by matching sortOrder but different planType
+      correspondingEvent = allEvents.find(e =>
+        e.sortOrder === currentEvent.sortOrder &&
+        e.planType !== currentEvent.planType
+      );
+    }
+
+    // Update RSVP for the clicked event
     if (joined) {
       newSet.add(eventId);
     } else {
       newSet.delete(eventId);
     }
+
+    // Automatically sync the corresponding event
+    if (correspondingEvent) {
+      if (joined) {
+        newSet.add(correspondingEvent.id);
+      } else {
+        newSet.delete(correspondingEvent.id);
+      }
+    }
+
     setRsvps(newSet);
 
     // If already registered, save RSVP immediately and show toast
     if (guestData) {
-      // Find the event title for the toast
-      const allEvents = [...(fairEvents || []), ...(rainEvents || [])];
       const event = allEvents.find(e => e.id === eventId);
       const eventTitle = event?.title || "Mission";
 
+      // Save RSVP for the clicked event
       rsvpMutation.mutate({
         guestId: guestData.id,
         eventBlockId: eventId,
         status: joined ? "JOINED" : "DECLINED",
       });
 
+      // Save RSVP for the corresponding event
+      if (correspondingEvent) {
+        rsvpMutation.mutate({
+          guestId: guestData.id,
+          eventBlockId: correspondingEvent.id,
+          status: joined ? "JOINED" : "DECLINED",
+        });
+      }
+
       // Show toast notification
+      const planText = correspondingEvent
+        ? "both Fair Weather and Rain plans"
+        : "this mission";
+
       toast({
         title: joined ? "🎯 Mission Joined!" : "🚫 Mission Cancelled",
         description: joined
-          ? `You're now signed up for "${eventTitle}"`
-          : `You've been removed from "${eventTitle}"`,
+          ? `You're now signed up for "${eventTitle}" (${planText})`
+          : `You've been removed from "${eventTitle}" (${planText})`,
         duration: 3000,
       });
     }
@@ -644,12 +689,10 @@ export default function Landing() {
                         </Label>
                         <Input
                           id="edit-plus-ones"
-                          type="number"
-                          min="1"
-                          max="11"
+                          type="text"
                           placeholder="1"
                           value={editData.plusOnes}
-                          onChange={(e) => setEditData({ ...editData, plusOnes: parseInt(e.target.value) || 1 })}
+                          onChange={(e) => setEditData({ ...editData, plusOnes: e.target.value })}
                           className="text-center"
                         />
                         <p className="text-xs text-muted-foreground text-center">

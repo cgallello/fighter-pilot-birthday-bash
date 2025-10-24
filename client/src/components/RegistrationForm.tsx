@@ -12,12 +12,20 @@ export default function RegistrationForm({ onRegister }: RegistrationFormProps) 
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
-    plusOnes: 1,
+    plusOnes: "1", // Store as string to allow empty input
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onRegister(formData);
+
+    // Validate plusOnes is a number between 1-11
+    const plusOnesNum = parseInt(formData.plusOnes);
+    const validPlusOnes = !isNaN(plusOnesNum) && plusOnesNum >= 1 && plusOnesNum <= 11 ? plusOnesNum : 1;
+
+    onRegister({
+      ...formData,
+      plusOnes: validPlusOnes,
+    });
   };
 
   return (
@@ -74,12 +82,10 @@ export default function RegistrationForm({ onRegister }: RegistrationFormProps) 
           <Input
             id="plusOnes"
             data-testid="input-plus-ones"
-            type="number"
-            min="1"
-            max="11"
+            type="text"
             placeholder="1"
             value={formData.plusOnes}
-            onChange={(e) => setFormData({ ...formData, plusOnes: parseInt(e.target.value) || 1 })}
+            onChange={(e) => setFormData({ ...formData, plusOnes: e.target.value })}
             className="h-11"
           />
           <p className="text-xs text-muted-foreground">
